@@ -1,4 +1,6 @@
-﻿// Copyright (c) Microsoft.  All Rights Reserved.  Licensed under the Apache License, Version 2.0.  See License.txt in the project root for license information.
+﻿// Licensed to the .NET Foundation under one or more agreements.
+// The .NET Foundation licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for more information.
 
 using System.Collections.Generic;
 using System.Collections.Immutable;
@@ -15,13 +17,6 @@ namespace Microsoft.CodeAnalysis.PooledObjects1
         private PooledDictionary(ObjectPool<PooledDictionary<K, V>> pool)
         {
             _pool = pool;
-        }
-
-        public ImmutableDictionary<K, V> ToImmutableDictionaryAndFree()
-        {
-            var result = this.ToImmutableDictionary();
-            Free();
-            return result;
         }
 
         public void Free()
@@ -43,7 +38,7 @@ namespace Microsoft.CodeAnalysis.PooledObjects1
 
         public static PooledDictionary<K, V> GetInstance()
         {
-            var instance = s_poolInstance.Allocate();
+            PooledDictionary<K, V> instance = s_poolInstance.Allocate();
             Debug.Assert(instance.Count == 0);
             return instance;
         }

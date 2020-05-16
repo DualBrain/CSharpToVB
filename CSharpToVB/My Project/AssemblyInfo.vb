@@ -1,21 +1,19 @@
 ﻿' Licensed to the .NET Foundation under one or more agreements.
 ' The .NET Foundation licenses this file to you under the MIT license.
 ' See the LICENSE file in the project root for more information.
-#If Not netcoreapp5_0
+#If Not netcoreapp5_0 Then
 
-Option Strict On
-Option Explicit On
-
-Imports System.Reflection
 Imports System.Collections.ObjectModel
+Imports System.Reflection
+
 Imports CSharpToVBApp.Microsoft.VisualBasic.CompilerServices
 
 Namespace Microsoft.VisualBasic.ApplicationServices
 
     ''' <summary>
-    '''  A class that contains the information about an Application. This information can be
-    '''  specified using the assembly attributes (contained in AssemblyInfo.vb file in case of
-    '''  a VB project in Visual Studio .NET).
+    ''' A class that contains the information about an Application. This information can be
+    ''' specified using the assembly attributes (contained in AssemblyInfo.vb file in case of
+    ''' a VB project in Visual Studio .NET).
     ''' </summary>
     ''' <remarks>This class is based on the FileVersionInfo class of the framework, but
     ''' reduced to a number of relevant properties.</remarks>
@@ -213,11 +211,14 @@ Namespace Microsoft.VisualBasic.ApplicationServices
         ' Since these properties will not change during runtime, they're cached.
         ' "" is not Nothing so use Nothing to mark an un-accessed property.
         Private _description As String = Nothing ' Cache the assembly's description.
+
         Private _title As String = Nothing ' Cache the assembly's title.
         Private _productName As String = Nothing ' Cache the assembly's product name.
         Private _companyName As String = Nothing ' Cache the assembly's company name.
         Private _trademark As String = Nothing ' Cache the assembly's trademark.
         Private _copyright As String = Nothing ' Cache the assembly's copyright.
     End Class
+
 End Namespace
+
 #End If

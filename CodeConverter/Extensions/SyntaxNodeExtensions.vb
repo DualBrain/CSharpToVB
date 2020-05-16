@@ -1,15 +1,10 @@
 ﻿' Licensed to the .NET Foundation under one or more agreements.
 ' The .NET Foundation licenses this file to you under the MIT license.
 ' See the LICENSE file in the project root for more information.
-Option Explicit On
-Option Infer Off
-Option Strict On
-
 Imports System.Runtime.CompilerServices
 Imports System.Text
-Imports System.Windows.Forms
 
-Imports CSharpToVBCodeConverter.Visual_Basic
+Imports CSharpToVBCodeConverter.DestVisualBasic
 
 Imports Microsoft.CodeAnalysis
 
@@ -31,9 +26,9 @@ Namespace CSharpToVBCodeConverter.Util
         ''' <param name="FoundEOL"></param>
         ''' <param name="FoundWhiteSpace"></param>
         Private Sub AdjustTrailingTrivia(TriviaList As IEnumerable(Of SyntaxTrivia), NewTrailingTrivia As List(Of SyntaxTrivia), ByRef FoundEOL As Boolean, ByRef FoundWhiteSpace As Boolean)
-            For i As Integer = 0 To TriviaList.Count - 1
-                Dim Trivia As SyntaxTrivia = TriviaList(i)
-                Dim NextTrivia As SyntaxTrivia = If(i < TriviaList.Count - 1, TriviaList(i + 1), Nothing)
+            For Each e As IndexClass(Of SyntaxTrivia) In TriviaList.WithIndex
+                Dim Trivia As SyntaxTrivia = e.Value
+                Dim NextTrivia As SyntaxTrivia = If(Not e.IsLast, TriviaList(e.Index + 1), Nothing)
                 Select Case Trivia.RawKind
                     Case VB.SyntaxKind.WhitespaceTrivia
                         If Not FoundWhiteSpace AndAlso Not NextTrivia.IsKind(VB.SyntaxKind.EndOfLineTrivia) Then
@@ -50,13 +45,13 @@ Namespace CSharpToVBCodeConverter.Util
                     Case VB.SyntaxKind.CommentTrivia
                         NewTrailingTrivia.Add(Trivia)
                         If Not NextTrivia.IsKind(VB.SyntaxKind.EndOfLineTrivia) Then
-                            NewTrailingTrivia.Add(VB_EOLTrivia)
+                            NewTrailingTrivia.Add(VBEOLTrivia)
                             FoundEOL = True
                         End If
                         FoundWhiteSpace = False
                     Case VB.SyntaxKind.EndRegionDirectiveTrivia
                         If Not FoundEOL Then
-                            NewTrailingTrivia.Add(VB_EOLTrivia)
+                            NewTrailingTrivia.Add(VBEOLTrivia)
                         End If
                         NewTrailingTrivia.Add(Trivia)
                         FoundEOL = False
@@ -64,7 +59,7 @@ Namespace CSharpToVBCodeConverter.Util
                     Case Else
                         If Trivia.IsDirective Then
                             If Not FoundEOL Then
-                                NewTrailingTrivia.Add(VB_EOLTrivia)
+                                NewTrailingTrivia.Add(VBEOLTrivia)
                             End If
                             NewTrailingTrivia.Add(Trivia)
                             FoundEOL = False
@@ -104,9 +99,9 @@ Namespace CSharpToVBCodeConverter.Util
         End Function
 
         Private Function ReplaceLeadingSlashes(CommentTriviaBody As String) As String
-            For i As Integer = 0 To CommentTriviaBody.Length - 1
-                If CommentTriviaBody.Substring(i, 1) = "/" Then
-                    CommentTriviaBody = CommentTriviaBody.Remove(i, 1).Insert(i, "'")
+            For charIndex As Integer = 0 To CommentTriviaBody.Length - 1
+                If CommentTriviaBody.Substring(charIndex, 1) = "/" Then
+                    CommentTriviaBody = CommentTriviaBody.Remove(charIndex, 1).Insert(charIndex, "'")
                 Else
                     Exit For
                 End If
@@ -123,53 +118,53 @@ Namespace CSharpToVBCodeConverter.Util
         Friend Function ConvertDirectiveTrivia(OriginalText As String) As List(Of SyntaxTrivia)
             Dim Text As String = OriginalText.Trim(" "c)
             Dim ResultTrivia As New List(Of SyntaxTrivia)
-            Debug.Assert(Text.StartsWith("#", StringComparison.InvariantCulture), "All directives must start with #")
+            Debug.Assert(Text.StartsWith("#", StringComparison.Ordinal), "All directives must start with #")
 
-            If Text.StartsWith("#if", StringComparison.InvariantCulture) OrElse Text.StartsWith("#elif", StringComparison.InvariantCulture) Then
-                Dim Expression1 As String = Text.Replace("#if ", "", StringComparison.InvariantCulture).
-                        Replace("#elif ", "", StringComparison.InvariantCulture).
-                        Replace("!", "Not ", StringComparison.InvariantCulture).
-                        Replace("==", "=", StringComparison.InvariantCulture).
-                        Replace("!=", "<>", StringComparison.InvariantCulture).
-                        Replace("&&", "And", StringComparison.InvariantCulture).
-                        Replace("||", "Or", StringComparison.InvariantCulture).
-                        Replace("  ", " ", StringComparison.InvariantCulture).
-                        Replace("false", "False", StringComparison.InvariantCulture).
-                        Replace("true", "True", StringComparison.InvariantCulture).
-                        Replace("//", " ' ", StringComparison.InvariantCulture).
-                        Replace("  ", " ", StringComparison.InvariantCulture)
+            If Text.StartsWith("#if", StringComparison.Ordinal) OrElse Text.StartsWith("#elif", StringComparison.Ordinal) Then
+                Dim Expression1 As String = Text.Replace("#if ", "", StringComparison.Ordinal).
+                        Replace("#elif ", "", StringComparison.Ordinal).
+                        Replace("!", "Not ", StringComparison.Ordinal).
+                        Replace("==", "=", StringComparison.Ordinal).
+                        Replace("!=", "<>", StringComparison.Ordinal).
+                        Replace("&&", "And", StringComparison.Ordinal).
+                        Replace("||", "Or", StringComparison.Ordinal).
+                        Replace("  ", " ", StringComparison.Ordinal).
+                        Replace("false", "False", StringComparison.Ordinal).
+                        Replace("true", "True", StringComparison.Ordinal).
+                        Replace("//", " ' ", StringComparison.Ordinal).
+                        Replace("  ", " ", StringComparison.Ordinal)
 
-                Dim Kind As VB.SyntaxKind = If(Text.StartsWith("#if", StringComparison.InvariantCulture), VB.SyntaxKind.IfDirectiveTrivia, VB.SyntaxKind.ElseIfDirectiveTrivia)
-                Dim IfOrElseIfKeyword As SyntaxToken = If(Text.StartsWith("#if", StringComparison.InvariantCulture), IfKeyword, ElseIfKeyword)
+                Dim Kind As VB.SyntaxKind = If(Text.StartsWith("#if", StringComparison.Ordinal), VB.SyntaxKind.IfDirectiveTrivia, VB.SyntaxKind.ElseIfDirectiveTrivia)
+                Dim IfOrElseIfKeyword As SyntaxToken = If(Text.StartsWith("#if", StringComparison.Ordinal), IfKeyword, ElseIfKeyword)
                 Dim Expr As VBS.ExpressionSyntax = VBFactory.ParseExpression(Expression1)
                 Dim IfDirectiveTrivia As VBS.IfDirectiveTriviaSyntax = VBFactory.IfDirectiveTrivia(IfOrElseIfKeyword, Expr)
                 ResultTrivia.Add(VBFactory.Trivia(IfDirectiveTrivia))
                 Return ResultTrivia
             End If
-            If Text.StartsWith("#region", StringComparison.InvariantCulture) OrElse Text.StartsWith("# region", StringComparison.InvariantCulture) Then
+            If Text.StartsWith("#region", StringComparison.Ordinal) OrElse Text.StartsWith("# region", StringComparison.Ordinal) Then
                 ResultTrivia.AddRange(ConvertTrivia(CS.SyntaxFactory.ParseLeadingTrivia(Text)))
                 Return ResultTrivia
             End If
-            If Text.StartsWith("#endregion", StringComparison.InvariantCulture) Then
+            If Text.StartsWith("#endregion", StringComparison.Ordinal) Then
                 ResultTrivia.Add(VBFactory.Trivia(VBFactory.EndRegionDirectiveTrivia()))
-                Text = Text.Replace("#endregion", "", StringComparison.InvariantCulture)
+                Text = Text.Replace("#endregion", "", StringComparison.Ordinal)
                 If Text.Length > 0 Then
                     Stop
                 End If
                 Return ResultTrivia
             End If
-            If Text.StartsWith("#else", StringComparison.InvariantCulture) Then
-                Dim ElseKeywordWithTrailingTrivia As SyntaxToken = ElseKeyword.WithTrailingTrivia(ConvertTrivia(CS.SyntaxFactory.ParseTrailingTrivia(Text.Replace("#else", "", StringComparison.InvariantCulture))))
+            If Text.StartsWith("#else", StringComparison.Ordinal) Then
+                Dim ElseKeywordWithTrailingTrivia As SyntaxToken = ElseKeyword.WithTrailingTrivia(ConvertTrivia(CS.SyntaxFactory.ParseTrailingTrivia(Text.Replace("#else", "", StringComparison.Ordinal))))
                 ResultTrivia.Add(VBFactory.Trivia(VBFactory.ElseDirectiveTrivia(HashToken, ElseKeywordWithTrailingTrivia)))
                 Return ResultTrivia
             End If
-            If Text.StartsWith("#endif", StringComparison.InvariantCulture) Then
-                Text = Text.Replace("#endif", "", StringComparison.InvariantCulture)
-                Dim IfKeywordWithTrailingTrivia As SyntaxToken = IfKeyword.WithTrailingTrivia(ConvertTrivia(CS.SyntaxFactory.ParseTrailingTrivia(Text.Replace("#endif", "", StringComparison.InvariantCulture))))
+            If Text.StartsWith("#endif", StringComparison.Ordinal) Then
+                Text = Text.Replace("#endif", "", StringComparison.Ordinal)
+                Dim IfKeywordWithTrailingTrivia As SyntaxToken = IfKeyword.WithTrailingTrivia(ConvertTrivia(CS.SyntaxFactory.ParseTrailingTrivia(Text.Replace("#endif", "", StringComparison.Ordinal))))
                 ResultTrivia.Add(VBFactory.Trivia(VBFactory.EndIfDirectiveTrivia(HashToken, EndKeyword, IfKeywordWithTrailingTrivia)))
                 Return ResultTrivia
             End If
-            If Text.StartsWith("#pragma warning", StringComparison.InvariantCulture) Then
+            If Text.StartsWith("#pragma warning", StringComparison.Ordinal) Then
                 ResultTrivia.AddRange(ConvertTrivia(CS.SyntaxFactory.ParseLeadingTrivia(Text)))
                 Return ResultTrivia
             Else
@@ -264,9 +259,9 @@ Namespace CSharpToVBCodeConverter.Util
             End Select
             Dim NewLeadingTrivia As New List(Of SyntaxTrivia)
             Dim FirstTrivia As Boolean = True
-            For i As Integer = 0 To node.GetLeadingTrivia.Count - 1
-                Dim Trivia As SyntaxTrivia = node.GetLeadingTrivia(i)
-                Dim NextTrivia As SyntaxTrivia = If(i < node.GetLeadingTrivia.Count - 1, node.GetLeadingTrivia(i + 1), Nothing)
+            For Each e As IndexClass(Of SyntaxTrivia) In node.GetLeadingTrivia.WithIndex
+                Dim Trivia As SyntaxTrivia = e.Value
+                Dim NextTrivia As SyntaxTrivia = If(Not e.IsLast, node.GetLeadingTrivia(e.Index + 1), Nothing)
                 If Trivia.IsKind(VB.SyntaxKind.EndOfLineTrivia) AndAlso (FirstTrivia OrElse NextTrivia.IsKind(VB.SyntaxKind.EndOfLineTrivia)) Then
                     Continue For
                 End If
@@ -337,13 +332,12 @@ Namespace CSharpToVBCodeConverter.Util
             Dim AfterWhiteSpace As Boolean = False
             Dim FinalLeadingTriviaList As New List(Of SyntaxTrivia)
             Dim InitialTriviaList As List(Of SyntaxTrivia) = Node.GetTrailingTrivia.ToList
-            Dim InitialTriviaListUBound As Integer = InitialTriviaList.Count - 1
             Dim AfterComment As Boolean = False
             Dim AfterLinefeed As Boolean = False
             Dim FinalTrailingTriviaList As New List(Of SyntaxTrivia)
-            For i As Integer = 0 To InitialTriviaListUBound
-                Dim Trivia As SyntaxTrivia = InitialTriviaList(i)
-                Dim NextTrivia As SyntaxTrivia = If(i < InitialTriviaListUBound, InitialTriviaList(i + 1), VBFactory.ElasticMarker)
+            For Each e As IndexClass(Of SyntaxTrivia) In InitialTriviaList.WithIndex
+                Dim Trivia As SyntaxTrivia = e.Value
+                Dim NextTrivia As SyntaxTrivia = If(Not e.IsLast, InitialTriviaList(e.Index + 1), VBFactory.ElasticMarker)
                 Select Case Trivia.RawKind
                     Case VB.SyntaxKind.WhitespaceTrivia
                         If NextTrivia.IsKind(VB.SyntaxKind.EndOfLineTrivia) Then
@@ -386,7 +380,7 @@ Namespace CSharpToVBCodeConverter.Util
                         End If
                         FinalTrailingTriviaList.Add(Trivia)
                         If Not NextTrivia.IsKind(VB.SyntaxKind.EndOfLineTrivia) Then
-                            FinalTrailingTriviaList.Add(VB_EOLTrivia)
+                            FinalTrailingTriviaList.Add(VBEOLTrivia)
                             AfterLineContinuation = False
                             AfterLinefeed = True
                         End If
@@ -415,28 +409,29 @@ Namespace CSharpToVBCodeConverter.Util
         <Extension>
         Friend Function WithModifiedNodeTrivia(Of T As VB.VisualBasicSyntaxNode)(Node As T, SeparatorFollows As Boolean) As T
             Dim AfterFirstTrivia As Boolean = False
+            Dim AfterEOL As Boolean = False
             Dim AfterLineContinuation As Boolean = False
             Dim AfterWhiteSpace As Boolean = False
             Dim FinalLeadingTriviaList As New List(Of SyntaxTrivia)
             Dim InitialTriviaList As List(Of SyntaxTrivia) = Node.GetLeadingTrivia.ToList
-            Dim InitialTriviaListUBound As Integer = InitialTriviaList.Count - 1
-            For i As Integer = 0 To InitialTriviaListUBound
-                Dim Trivia As SyntaxTrivia = InitialTriviaList(i)
-                Dim NextTrivia As SyntaxTrivia = If(i < InitialTriviaList.Count - 1, InitialTriviaList(i + 1), Nothing)
+            For Each e As IndexClass(Of SyntaxTrivia) In InitialTriviaList.WithIndex
+                Dim Trivia As SyntaxTrivia = e.Value
+                Dim NextTrivia As SyntaxTrivia = If(Not e.IsLast, InitialTriviaList(e.Index + 1), Nothing)
                 Select Case Trivia.RawKind
                     Case VB.SyntaxKind.WhitespaceTrivia
                         If NextTrivia.IsKind(VB.SyntaxKind.EndOfLineTrivia) OrElse AfterLineContinuation Then
                             Continue For
                         ElseIf NextTrivia.IsKind(VB.SyntaxKind.WhitespaceTrivia) Then
-                            If Trivia.FullSpan.Length < NextTrivia.FullSpan.Length Then
-                                AfterFirstTrivia = False
+                            If Trivia.FullSpan.Length = 0 OrElse Trivia.FullSpan.Length <= NextTrivia.FullSpan.Length Then
                                 Continue For
                             Else
-                                Trivia = NextTrivia
-                                i += 1
+                                If NextTrivia.FullSpan.Length = 0 Then
+                                    e.MoveNext()
+                                End If
                             End If
                         End If
                         AfterFirstTrivia = True
+                        AfterEOL = False
                         AfterWhiteSpace = True
                         FinalLeadingTriviaList.Add(Trivia)
                     Case VB.SyntaxKind.EndOfLineTrivia
@@ -453,57 +448,61 @@ Namespace CSharpToVBCodeConverter.Util
                         Else
                             AfterLineContinuation = False
                         End If
+                        AfterEOL = True
                     Case VB.SyntaxKind.CommentTrivia
                         AfterFirstTrivia = True
-                        If Not AfterLineContinuation Then
+                        If Not AfterLineContinuation OrElse AfterEOL Then
                             If Not AfterWhiteSpace Then
                                 FinalLeadingTriviaList.Add(SpaceTrivia)
                             End If
                             FinalLeadingTriviaList.Add(LineContinuation)
-                            AfterLineContinuation = True
+                            AfterLineContinuation = False
                         End If
                         FinalLeadingTriviaList.Add(Trivia)
                         If Not NextTrivia.IsKind(VB.SyntaxKind.EndOfLineTrivia) Then
-                            FinalLeadingTriviaList.Add(VB_EOLTrivia)
+                            FinalLeadingTriviaList.Add(VBEOLTrivia)
+                            AfterEOL = True
                         End If
                     Case VB.SyntaxKind.DisableWarningDirectiveTrivia, VB.SyntaxKind.EnableWarningDirectiveTrivia,
                          VB.SyntaxKind.IfDirectiveTrivia, VB.SyntaxKind.DisabledTextTrivia,
                        VB.SyntaxKind.ElseDirectiveTrivia, VB.SyntaxKind.EndIfDirectiveTrivia
                         FinalLeadingTriviaList.AddRange(DirectiveNotAllowedHere(Trivia))
                         AfterFirstTrivia = True
+                        AfterEOL = False
                         AfterLineContinuation = False
                         If NextTrivia.IsKind(VB.SyntaxKind.EndOfLineTrivia) OrElse NextTrivia.IsNone Then
                             Continue For
                         End If
-                        FinalLeadingTriviaList.Add(VB_EOLTrivia)
+                        FinalLeadingTriviaList.Add(VBEOLTrivia)
                     Case VB.SyntaxKind.LineContinuationTrivia
                         If Not AfterLineContinuation Then
                             FinalLeadingTriviaList.Add(Trivia)
                         End If
+                        AfterEOL = False
                         AfterLineContinuation = True
                     Case VB.SyntaxKind.RegionDirectiveTrivia, VB.SyntaxKind.EndRegionDirectiveTrivia
                         AfterFirstTrivia = True
+                        AfterEOL = False
                         AfterLineContinuation = False
                         FinalLeadingTriviaList.Add(Trivia)
                         If NextTrivia.IsKind(VB.SyntaxKind.EndOfLineTrivia) OrElse NextTrivia.IsNone Then
                             Continue For
                         End If
-                        FinalLeadingTriviaList.Add(VB_EOLTrivia)
+                        FinalLeadingTriviaList.Add(VBEOLTrivia)
                     Case Else
                         Stop
                 End Select
             Next
             InitialTriviaList.Clear()
             InitialTriviaList.AddRange(Node.GetTrailingTrivia)
-            InitialTriviaListUBound = InitialTriviaList.Count - 1
             AfterWhiteSpace = False
             Dim AfterComment As Boolean = False
             AfterLineContinuation = False
             Dim AfterLinefeed As Boolean = False
             Dim FinalTrailingTriviaList As New List(Of SyntaxTrivia)
-            For i As Integer = 0 To InitialTriviaListUBound
-                Dim Trivia As SyntaxTrivia = InitialTriviaList(i)
-                Dim NextTrivia As SyntaxTrivia = If(i < InitialTriviaListUBound, InitialTriviaList(i + 1), VBFactory.ElasticMarker)
+            For Each e As IndexClass(Of SyntaxTrivia) In InitialTriviaList.WithIndex
+                Dim Trivia As SyntaxTrivia = e.Value
+                Dim NextTrivia As SyntaxTrivia = If(Not e.IsLast, InitialTriviaList(e.Index + 1), VBFactory.ElasticMarker)
                 Select Case Trivia.RawKind
                     Case VB.SyntaxKind.WhitespaceTrivia
                         If NextTrivia.IsKind(VB.SyntaxKind.EndOfLineTrivia) Then
@@ -546,7 +545,7 @@ Namespace CSharpToVBCodeConverter.Util
                         End If
                         FinalTrailingTriviaList.Add(Trivia)
                         If Not NextTrivia.IsKind(VB.SyntaxKind.EndOfLineTrivia) Then
-                            FinalTrailingTriviaList.Add(VB_EOLTrivia)
+                            FinalTrailingTriviaList.Add(VBEOLTrivia)
                             AfterLineContinuation = False
                             AfterLinefeed = True
                         End If
@@ -573,7 +572,7 @@ Namespace CSharpToVBCodeConverter.Util
             End If
             Dim TriviaList As List(Of SyntaxTrivia) = trivia.ToList
             If TriviaList.Last.IsKind(VB.SyntaxKind.CommentTrivia) Then
-                TriviaList.Add(VB_EOLTrivia)
+                TriviaList.Add(VBEOLTrivia)
             End If
             Return node.WithPrependedLeadingTrivia(TriviaList)
         End Function
@@ -584,7 +583,7 @@ Namespace CSharpToVBCodeConverter.Util
                 Return node
             End If
             If trivia.Last.IsKind(VB.SyntaxKind.CommentTrivia) Then
-                trivia = trivia.Add(VB_EOLTrivia)
+                trivia = trivia.Add(VBEOLTrivia)
             End If
             Return node.WithLeadingTrivia(trivia.Concat(node.GetLeadingTrivia()))
         End Function
@@ -629,15 +628,15 @@ Namespace CSharpToVBCodeConverter.Util
             Dim TrailingTrivia As List(Of SyntaxTrivia) = node.GetTrailingTrivia.ToList
             Dim Count As Integer = TrailingTrivia.Count
             If Count = 0 Then
-                Return node.WithTrailingTrivia(VB_EOLTrivia)
+                Return node.WithTrailingTrivia(VBEOLTrivia)
             End If
             Select Case Count
                 Case 1
                     Select Case TrailingTrivia.Last.RawKind
                         Case VB.SyntaxKind.WhitespaceTrivia, VB.SyntaxKind.EndOfLineTrivia
-                            Return node.WithTrailingTrivia(VB_EOLTrivia)
+                            Return node.WithTrailingTrivia(VBEOLTrivia)
                         Case Else
-                            TrailingTrivia.Add(VB_EOLTrivia)
+                            TrailingTrivia.Add(VBEOLTrivia)
                             Return node.WithTrailingTrivia(TrailingTrivia)
                     End Select
                 Case 2
@@ -657,7 +656,9 @@ Namespace CSharpToVBCodeConverter.Util
                             If TrailingTrivia.Last.IsKind(VB.SyntaxKind.WhitespaceTrivia) Then
                                 Return node
                             ElseIf TrailingTrivia.Last.IsKind(VB.SyntaxKind.EndOfLineTrivia) Then
-                                Return node.WithTrailingTrivia(VB_EOLTrivia)
+                                Return node.WithTrailingTrivia(VBEOLTrivia)
+                            ElseIf TrailingTrivia.Last.IsDirective Then
+                                Return node
                             End If
                             Stop
                         Case VB.SyntaxKind.CommentTrivia
@@ -670,7 +671,7 @@ Namespace CSharpToVBCodeConverter.Util
                         Case Else
                             Stop
                     End Select
-                    TrailingTrivia.Add(VB_EOLTrivia)
+                    TrailingTrivia.Add(VBEOLTrivia)
                     Return node.WithTrailingTrivia(TrailingTrivia)
                 Case Else
                     Count -= 1 ' Last index
@@ -688,7 +689,7 @@ Namespace CSharpToVBCodeConverter.Util
                             ElseIf TrailingTrivia(Count - 1).IsKind(VB.SyntaxKind.EndOfLineTrivia) Then
                                 Return node
                             ElseIf TrailingTrivia(Count - 1).IsCommentOrDirectiveTrivia Then
-                                TrailingTrivia.Insert(Count, VB_EOLTrivia)
+                                TrailingTrivia.Insert(Count, VBEOLTrivia)
                                 Return node.WithTrailingTrivia(TrailingTrivia)
                             End If
                             Return node.WithTrailingTrivia(TrailingTrivia)
@@ -709,17 +710,17 @@ Namespace CSharpToVBCodeConverter.Util
                 Case CS.SyntaxKind.WhitespaceTrivia
                     Return VBFactory.WhitespaceTrivia(t.ToString)
                 Case CS.SyntaxKind.EndOfLineTrivia
-                    Return VB_EOLTrivia
+                    Return VBEOLTrivia
                 Case CS.SyntaxKind.SingleLineCommentTrivia
-                    If t.ToFullString.EndsWith("*/", StringComparison.InvariantCulture) Then
+                    If t.ToFullString.EndsWith("*/", StringComparison.Ordinal) Then
                         Return VBFactory.CommentTrivia($"'{ReplaceLeadingSlashes(t.ToFullString.Substring(2, t.ToFullString.Length - 4))}")
                     End If
                     Return VBFactory.CommentTrivia($"'{ReplaceLeadingSlashes(t.ToFullString.Substring(2))}")
                 Case CS.SyntaxKind.MultiLineCommentTrivia
-                    If t.ToFullString.EndsWith("*/", StringComparison.InvariantCulture) Then
-                        Return VBFactory.CommentTrivia($"'{ReplaceLeadingSlashes(t.ToFullString.Substring(2, t.ToFullString.Length - 4)).Replace(vbLf, "", StringComparison.InvariantCulture)}")
+                    If t.ToFullString.EndsWith("*/", StringComparison.Ordinal) Then
+                        Return VBFactory.CommentTrivia($"'{ReplaceLeadingSlashes(t.ToFullString.Substring(2, t.ToFullString.Length - 4)).Replace(vbLf, "", StringComparison.Ordinal)}")
                     End If
-                    Return VBFactory.CommentTrivia($"'{ReplaceLeadingSlashes(t.ToFullString.Substring(2)).Replace(vbLf, "", StringComparison.InvariantCulture)}")
+                    Return VBFactory.CommentTrivia($"'{ReplaceLeadingSlashes(t.ToFullString.Substring(2)).Replace(vbLf, "", StringComparison.Ordinal)}")
 
                 Case CS.SyntaxKind.DocumentationCommentExteriorTrivia
                     Return VBFactory.SyntaxTrivia(VB.SyntaxKind.CommentTrivia, "'''")
@@ -727,9 +728,9 @@ Namespace CSharpToVBCodeConverter.Util
                     If IgnoredIfDepth > 0 Then
                         Return VBFactory.DisabledTextTrivia(t.ToString.WithoutNewLines(" "c))
                     End If
-                    Return VBFactory.DisabledTextTrivia(t.ToString.Replace(vbLf, vbCrLf, StringComparison.InvariantCulture))
+                    Return VBFactory.DisabledTextTrivia(t.ToString.Replace(vbLf, vbCrLf, StringComparison.Ordinal))
                 Case CS.SyntaxKind.PreprocessingMessageTrivia
-                    Return VBFactory.CommentTrivia($" ' {t.ToString}")
+                    Return VBFactory.CommentTrivia($" ' {t}")
 
                 Case CS.SyntaxKind.None
                     Return Nothing
@@ -773,21 +774,21 @@ Namespace CSharpToVBCodeConverter.Util
 
                 Case CS.SyntaxKind.ErrorDirectiveTrivia
                     Dim ErrorDirective As CSS.ErrorDirectiveTriviaSyntax = DirectCast(StructuredTrivia, CSS.ErrorDirectiveTriviaSyntax)
-                    Return VBFactory.CommentTrivia($"' TODO: Check VB does not support Error Directive Trivia, Original Directive {ErrorDirective.ToFullString}")
+                    Return VBFactory.CommentTrivia($"' TODO: Check VB does not support Error Directive Trivia, Original Directive {ErrorDirective.ToFullString.WithoutNewLines(" "c)}")
                 Case CS.SyntaxKind.IfDirectiveTrivia
                     If t.Token.Parent?.AncestorsAndSelf.OfType(Of CSS.InitializerExpressionSyntax).Any Then
                         IgnoredIfDepth += 1
                     End If
                     Dim IfDirective As CSS.IfDirectiveTriviaSyntax = DirectCast(StructuredTrivia, CSS.IfDirectiveTriviaSyntax)
                     Dim Expression1 As String = IfDirective.Condition.ToString.
-                                        Replace("!", "Not ", StringComparison.InvariantCulture).
-                                        Replace("==", "=", StringComparison.InvariantCulture).
-                                        Replace("!=", "<>", StringComparison.InvariantCulture).
-                                        Replace("&&", "And", StringComparison.InvariantCulture).
-                                        Replace("||", "Or", StringComparison.InvariantCulture).
-                                        Replace("  ", " ", StringComparison.InvariantCulture).
-                                        Replace("false", "False", StringComparison.InvariantCulture).
-                                        Replace("true", "True", StringComparison.InvariantCulture)
+                                        Replace("==", "=", StringComparison.Ordinal).
+                                        Replace("!=", "Not ", StringComparison.Ordinal).
+                                        Replace("&&", "And", StringComparison.Ordinal).
+                                        Replace("||", "Or", StringComparison.Ordinal).
+                                        Replace("  ", " ", StringComparison.Ordinal).
+                                        Replace("!", "Not ", StringComparison.Ordinal).
+                                        Replace("false", "False", StringComparison.Ordinal).
+                                        Replace("true", "True", StringComparison.Ordinal)
 
                     Return VBFactory.Trivia(VBFactory.IfDirectiveTrivia(IfKeyword, VBFactory.ParseExpression(Expression1)).
                                                                     With(ConvertTrivia(IfDirective.GetLeadingTrivia),
@@ -799,14 +800,14 @@ Namespace CSharpToVBCodeConverter.Util
                     End If
                     Dim ELIfDirective As CSS.ElifDirectiveTriviaSyntax = DirectCast(StructuredTrivia, CSS.ElifDirectiveTriviaSyntax)
                     Dim Expression1 As String = ELIfDirective.Condition.ToString.
-                                                    Replace("!", "Not ", StringComparison.InvariantCulture).
-                                                    Replace("==", "=", StringComparison.InvariantCulture).
-                                                    Replace("!=", "<>", StringComparison.InvariantCulture).
-                                                    Replace("&&", "And", StringComparison.InvariantCulture).
-                                                    Replace("||", "Or", StringComparison.InvariantCulture).
-                                                    Replace("  ", " ", StringComparison.InvariantCulture).
-                                                    Replace("false", "False", StringComparison.InvariantCulture).
-                                                    Replace("true", "True", StringComparison.InvariantCulture)
+                                                    Replace("!", "Not ", StringComparison.Ordinal).
+                                                    Replace("==", "=", StringComparison.Ordinal).
+                                                    Replace("!=", "<>", StringComparison.Ordinal).
+                                                    Replace("&&", "And", StringComparison.Ordinal).
+                                                    Replace("||", "Or", StringComparison.Ordinal).
+                                                    Replace("  ", " ", StringComparison.Ordinal).
+                                                    Replace("false", "False", StringComparison.Ordinal).
+                                                    Replace("true", "True", StringComparison.Ordinal)
 
                     Dim IfOrElseIfKeyword As SyntaxToken
                     If t.IsKind(CS.SyntaxKind.ElifDirectiveTrivia) Then
@@ -820,7 +821,7 @@ Namespace CSharpToVBCodeConverter.Util
                                                                          ConvertTrivia(ELIfDirective.Condition.GetTrailingTrivia)).
                                                                          WithAppendedTriviaFromEndOfDirectiveToken(ELIfDirective.EndOfDirectiveToken))
                 Case CS.SyntaxKind.LineDirectiveTrivia
-                    Return VBFactory.CommentTrivia($"' TODO: Check VB does not support Line Directive Trivia, Original Directive {t.ToString}")
+                    Return VBFactory.CommentTrivia($"' TODO: Check VB does not support Line Directive Trivia, Original Directive {t}")
                 Case CS.SyntaxKind.ElseDirectiveTrivia
                     Return VBFactory.Trivia(VBFactory.ElseDirectiveTrivia.
                                                             NormalizeWhitespace.
@@ -830,32 +831,31 @@ Namespace CSharpToVBCodeConverter.Util
                     Return VBFactory.Trivia(VBFactory.EndRegionDirectiveTrivia(HashToken, EndKeyword, RegionKeyword).
                                             WithAppendedTriviaFromEndOfDirectiveToken(EndRegionDirective.EndOfDirectiveToken))
                 Case CS.SyntaxKind.PragmaWarningDirectiveTrivia
-                    Dim PragmaWarningDirectiveTrivia As CSS.PragmaWarningDirectiveTriviaSyntax = DirectCast(StructuredTrivia, CSS.PragmaWarningDirectiveTriviaSyntax)
-                    Dim ErrorList As New List(Of VBS.IdentifierNameSyntax)
-                    Dim TrailingTrivia As New List(Of SyntaxTrivia)
-                    For Each i As CSS.ExpressionSyntax In PragmaWarningDirectiveTrivia.ErrorCodes
-                        Dim ErrorCode As String = i.ToString
-                        If ErrorCode.IsInteger Then
-                            ErrorCode = $"CS_{ErrorCode}"
-                        End If
-                        ErrorList.Add(VBFactory.IdentifierName(ErrorCode))
-                        TrailingTrivia.AddRange(ConvertTrivia(i.GetTrailingTrivia))
-                    Next
-                    TrailingTrivia.AddRange(ConvertTrivia(PragmaWarningDirectiveTrivia.EndOfDirectiveToken.LeadingTrivia))
-                    TrailingTrivia.AddRange(ConvertTrivia(PragmaWarningDirectiveTrivia.EndOfDirectiveToken.TrailingTrivia))
-                    Dim WarningDirectiveTrivia As VBS.DirectiveTriviaSyntax
-                    If PragmaWarningDirectiveTrivia.DisableOrRestoreKeyword.IsKind(CS.SyntaxKind.DisableKeyword) Then
-                        WarningDirectiveTrivia = VBFactory.DisableWarningDirectiveTrivia(ErrorList.ToArray)
-                    Else
-                        WarningDirectiveTrivia = VBFactory.EnableWarningDirectiveTrivia(ErrorList.ToArray)
-                    End If
-                    Return VBFactory.Trivia(WarningDirectiveTrivia.
-                                                            WithPrependedLeadingTrivia(VBFactory.CommentTrivia($"' TODO The value of the warning(s) needs to be manually translated after removing the 'CS' and optional '_'"), VB_EOLTrivia).
-                                                            WithTrailingTrivia(TrailingTrivia).WithTrailingEOL)
+                    'Dim PragmaWarningDirectiveTrivia As CSS.PragmaWarningDirectiveTriviaSyntax = DirectCast(StructuredTrivia, CSS.PragmaWarningDirectiveTriviaSyntax)
+                    'Dim ErrorList As New List(Of VBS.IdentifierNameSyntax)
+                    'Dim TrailingTriviaStringBuilder As New StringBuilder
+                    'For Each i As CSS.ExpressionSyntax In PragmaWarningDirectiveTrivia.ErrorCodes
+                    '    Dim ErrorCode As String = i.ToString
+                    '    If ErrorCode.IsInteger Then
+                    '        ErrorCode = $"cs{ErrorCode}"
+                    '    End If
+                    '    ErrorList.Add(VBFactory.IdentifierName(ErrorCode))
+                    '    For Each Trivial As SyntaxTrivia In i.GetTrailingTrivia
+                    '        TrailingTriviaStringBuilder.Append(Trivial.ToString)
+                    '    Next
+                    'Next
+                    'Dim WarningDirectiveTrivia As VBS.DirectiveTriviaSyntax
+                    'If PragmaWarningDirectiveTrivia.DisableOrRestoreKeyword.IsKind(CS.SyntaxKind.DisableKeyword) Then
+                    '    WarningDirectiveTrivia = VBFactory.DisableWarningDirectiveTrivia(ErrorList.ToArray)
+                    'Else
+                    '    WarningDirectiveTrivia = VBFactory.EnableWarningDirectiveTrivia(ErrorList.ToArray)
+                    'End If
+                    'Return VBFactory.CommentTrivia($" ' TODO {WarningDirectiveTrivia.NormalizeWhitespace}{TrailingTriviaStringBuilder.ToString}")
+                    Return Nothing
                 Case CS.SyntaxKind.RegionDirectiveTrivia
                     Dim RegionDirective As CSS.RegionDirectiveTriviaSyntax = CType(StructuredTrivia, CSS.RegionDirectiveTriviaSyntax)
                     Dim EndOfDirectiveToken As SyntaxToken = RegionDirective.EndOfDirectiveToken
-                    Dim NameString As String = $"""{EndOfDirectiveToken.LeadingTrivia.ToString.Replace("""", "", StringComparison.InvariantCulture)}"""
+                    Dim NameString As String = $"""{EndOfDirectiveToken.LeadingTrivia.ToString.Replace("""", "", StringComparison.Ordinal)}"""
                     Dim RegionDirectiveTriviaNode As VBS.RegionDirectiveTriviaSyntax =
                             VBFactory.RegionDirectiveTrivia(
                                                     HashToken,
@@ -869,11 +869,11 @@ Namespace CSharpToVBCodeConverter.Util
                     walker.Visit(SingleLineDocumentationComment)
 
                     Dim xmlNodes As New List(Of VBS.XmlNodeSyntax)
-                    For i As Integer = 0 To SingleLineDocumentationComment.Content.Count - 1
-                        Dim node As CSS.XmlNodeSyntax = SingleLineDocumentationComment.Content(i)
-                        If (Not node.IsKind(CS.SyntaxKind.XmlText)) AndAlso node.GetLeadingTrivia.Count > 0 AndAlso node.GetLeadingTrivia.First.IsKind(CS.SyntaxKind.DocumentationCommentExteriorTrivia) Then
-                            If i < SingleLineDocumentationComment.Content.Count - 1 Then
-                                Dim NextNode As CSS.XmlNodeSyntax = SingleLineDocumentationComment.Content(i + 1)
+                    For Each e As IndexClass(Of CSS.XmlNodeSyntax) In SingleLineDocumentationComment.Content.WithIndex
+                        Dim node As CSS.XmlNodeSyntax = e.Value
+                        If (Not node.IsKind(CS.SyntaxKind.XmlText)) AndAlso node.GetLeadingTrivia.Any AndAlso node.GetLeadingTrivia.First.IsKind(CS.SyntaxKind.DocumentationCommentExteriorTrivia) Then
+                            If Not e.IsLast Then
+                                Dim NextNode As CSS.XmlNodeSyntax = SingleLineDocumentationComment.Content(e.Index + 1)
                                 If (Not NextNode.IsKind(CS.SyntaxKind.XmlText)) OrElse
                                     NextNode.GetLeadingTrivia.Count = 0 OrElse
                                     Not NextNode.GetLeadingTrivia.First.IsKind(CS.SyntaxKind.DocumentationCommentExteriorTrivia) Then
@@ -921,7 +921,7 @@ Namespace CSharpToVBCodeConverter.Util
                     For Each tok As SyntaxToken In CType(StructuredTrivia, CSS.SkippedTokensTriviaSyntax).Tokens
                         Builder.Append(tok.ToString)
                     Next
-                    Return VBFactory.CommentTrivia($"' TODO: Error SkippedTokensTrivia '{Builder.ToString}'")
+                    Return VBFactory.CommentTrivia($"' TODO: Error SkippedTokensTrivia '{Builder}'")
                 Case CS.SyntaxKind.BadDirectiveTrivia
                     Return VBFactory.CommentTrivia($"' TODO: Skipped BadDirectiveTrivia")
                 Case CS.SyntaxKind.ConflictMarkerTrivia
@@ -941,31 +941,29 @@ Namespace CSharpToVBCodeConverter.Util
 
         <Extension>
         Public Function ConvertTrivia(TriviaToConvert As IReadOnlyCollection(Of SyntaxTrivia)) As IEnumerable(Of SyntaxTrivia)
-            Application.DoEvents()
             Dim TriviaList As New List(Of SyntaxTrivia)
             If TriviaToConvert Is Nothing Then
                 Return TriviaList
             End If
             Try
-                Dim TriviaCount As Integer = TriviaToConvert.Count - 1
-                For i As Integer = 0 To TriviaCount
-                    Dim Trivia As SyntaxTrivia = TriviaToConvert(i)
-                    Dim NextTrivia As SyntaxTrivia = If(i < TriviaCount, TriviaToConvert(i + 1), Nothing)
+                For Each e As IndexClass(Of SyntaxTrivia) In TriviaToConvert.WithIndex
+                    Dim Trivia As SyntaxTrivia = e.Value
+                    Dim NextTrivia As SyntaxTrivia = If(Not e.IsLast, TriviaToConvert(e.Index + 1), Nothing)
                     Select Case Trivia.RawKind
                         Case CS.SyntaxKind.MultiLineCommentTrivia
                             Dim Lines() As String = Trivia.ToFullString.Substring(2).Split(CType(vbLf, Char))
                             For Each line As String In Lines
-                                If line.EndsWith("*/", StringComparison.InvariantCulture) Then
+                                If line.EndsWith("*/", StringComparison.Ordinal) Then
                                     TriviaList.Add(VBFactory.CommentTrivia($"' {RemoveLeadingSpacesStar(line.Substring(0, line.Length - 2))}"))
-                                    If Trivia.ToFullString.EndsWith(vbLf, StringComparison.InvariantCulture) Then
-                                        TriviaList.Add(VB_EOLTrivia)
+                                    If Trivia.ToFullString.EndsWith(vbLf, StringComparison.Ordinal) Then
+                                        TriviaList.Add(VBEOLTrivia)
                                     End If
                                 Else
                                     TriviaList.Add(VBFactory.CommentTrivia($"' {RemoveLeadingSpacesStar(line)}"))
-                                    TriviaList.Add(VB_EOLTrivia)
+                                    TriviaList.Add(VBEOLTrivia)
                                 End If
-                                If Lines.Length = 1 AndAlso (i = TriviaCount OrElse Not TriviaToConvert(i + 1).IsEndOfLine) Then
-                                    TriviaList.Add(VB_EOLTrivia)
+                                If Lines.Length = 1 AndAlso (e.IsLast OrElse Not TriviaToConvert(e.Index + 1).IsEndOfLine) Then
+                                    TriviaList.Add(VBEOLTrivia)
                                 End If
                             Next
                         Case CS.SyntaxKind.NullableDirectiveTrivia
@@ -979,12 +977,12 @@ Namespace CSharpToVBCodeConverter.Util
                             For Each t1 As SyntaxNode In sld.ChildNodes
                                 Dim Lines() As String = t1.ToFullString.Split(CType(vbLf, Char))
                                 For Each line As String In Lines
-                                    If line.StartsWith("/*", StringComparison.InvariantCulture) Then
+                                    If line.StartsWith("/*", StringComparison.Ordinal) Then
                                         TriviaList.Add(VBFactory.CommentTrivia($"' {RemoveLeadingSpacesStar(line.Substring(1, line.Length - 1))}"))
-                                        TriviaList.Add(VB_EOLTrivia)
+                                        TriviaList.Add(VBEOLTrivia)
                                     Else
                                         TriviaList.Add(VBFactory.CommentTrivia($"' {RemoveLeadingSpacesStar(line)}"))
-                                        TriviaList.Add(VB_EOLTrivia)
+                                        TriviaList.Add(VBEOLTrivia)
                                     End If
                                 Next
                             Next
@@ -996,12 +994,11 @@ Namespace CSharpToVBCodeConverter.Util
                             TriviaList.Add(ConvertedTrivia)
                             If Trivia.IsKind(CS.SyntaxKind.SingleLineCommentTrivia) Then
                                 If Not NextTrivia.IsKind(CS.SyntaxKind.EndOfLineTrivia) Then
-                                    TriviaList.Add(VB_EOLTrivia)
+                                    TriviaList.Add(VBEOLTrivia)
                                 End If
                             End If
                     End Select
                 Next
-                Application.DoEvents()
             Catch ex As OperationCanceledException
                 Throw
             Catch ex As Exception

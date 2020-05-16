@@ -182,7 +182,7 @@ Imports System.Text.RegularExpressions
 Friend Module CanonicalError
 
     ' Defines the main pattern for matching messages.
-    Private ReadOnly _s_originCategoryCodeTextExpression As Regex = New Regex( _
+    Private ReadOnly _s_originCategoryCodeTextExpression As New Regex( _
  _ ' Beginning of line and any amount of whitespace.
         ""^\s*"" _
  _ ' Match a [optional project number prefix 'ddd>'], single letter + colon + remaining filename, or
@@ -245,7 +245,7 @@ Imports System.Text.RegularExpressions
 Friend Module CanonicalError
 
     ' Defines the main pattern for matching messages.
-    Private ReadOnly _s_originCategoryCodeTextExpression As Regex = New Regex( _
+    Private ReadOnly _s_originCategoryCodeTextExpression As New Regex( _
         ""^\s*"" _
  _ ' Match a [optional project number prefix 'ddd>'], single letter + colon + remaining filename, or
  _ ' string with no colon followed by a colon.
@@ -354,10 +354,10 @@ Option Strict Off
 Class TestClass
 
     Private Sub TestMethod(str As String)
-        Dim length As Integer = If(str?.Length, -1)
-        Console.WriteLine(length)
+        Dim _length As Integer = If(str?.Length, -1)
+        Console.WriteLine(_length)
         Console.ReadKey()
-        Dim redirectUri As String = context.OwinContext.Authentication?.AuthenticationResponseChallenge?.Properties?.RedirectUri
+        Dim _redirectUri As String = context.OwinContext.Authentication?.AuthenticationResponseChallenge?.Properties?.RedirectUri
     End Sub
 End Class")
         End Sub
@@ -702,7 +702,7 @@ End Class
 Class TestClass
 
     Private Sub TestMethod(str As String)
-        Dim student2 As StudentName = New StudentName With
+        Dim student2 As New StudentName With
             { _
             .FirstName = ""Craig"",
             .LastName = ""Playmate""}
@@ -776,6 +776,7 @@ Class TestClass
     End Sub
 End Class")
         End Sub
+
     End Class
 
 End Namespace

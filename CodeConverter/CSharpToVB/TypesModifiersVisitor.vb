@@ -1,9 +1,6 @@
 ﻿' Licensed to the .NET Foundation under one or more agreements.
 ' The .NET Foundation licenses this file to you under the MIT license.
 ' See the LICENSE file in the project root for more information.
-Option Explicit On
-Option Infer Off
-Option Strict On
 
 Imports CSharpToVBCodeConverter.Util
 
@@ -15,7 +12,7 @@ Imports VB = Microsoft.CodeAnalysis.VisualBasic
 Imports VBFactory = Microsoft.CodeAnalysis.VisualBasic.SyntaxFactory
 Imports VBS = Microsoft.CodeAnalysis.VisualBasic.Syntax
 
-Namespace CSharpToVBCodeConverter.Visual_Basic
+Namespace CSharpToVBCodeConverter.DestVisualBasic
 
     Partial Public Class CSharpConverter
 
@@ -43,38 +40,19 @@ Namespace CSharpToVBCodeConverter.Visual_Basic
             End Function
 
             Friend Shared Function ConvertNamedTypeToTypeString(TypeString As String) As String
-                Dim SplitTypeString() As String = TypeString.Trim.Split(" "c, StringComparison.InvariantCulture)
+                Dim SplitTypeString() As String = TypeString.Trim.Split(" "c, StringComparison.Ordinal)
                 If SplitTypeString.Length > 2 Then
                     Stop
                 End If
-                Dim IndexOfLessThan As Integer = TypeString.IndexOf("<", StringComparison.InvariantCulture)
+                Dim IndexOfLessThan As Integer = TypeString.IndexOf("<", StringComparison.Ordinal)
                 Dim TypeName As String = SplitTypeString(0)
-                Dim Name As String = If(SplitTypeString.Length = 1, "", SplitTypeString(1) & " As ")
+                Dim Name As String = If(SplitTypeString.Length = 1, "", MakeVBSafeName(SplitTypeString(1)) & " As ")
                 If IndexOfLessThan > 0 Then
                     Return $"{Name}{TypeName.Left(IndexOfLessThan)}{TypeName.Substring(IndexOfLessThan).
-                                    Replace("<", "(Of ", StringComparison.InvariantCulture).
-                                    Replace(">", ")", StringComparison.InvariantCulture)}"
+                                    Replace("<", "(Of ", StringComparison.Ordinal).
+                                    Replace(">", ")", StringComparison.Ordinal)}"
                 End If
                 Return Name & ConvertToType(TypeName).ToString
-            End Function
-
-            Private Shared Function ConvertTupleToTypeStrings(TypeString As String) As List(Of String)
-                Dim RetList As New List(Of String)
-                Dim IndexOfLessThan As Integer = TypeString.IndexOf("<", StringComparison.InvariantCulture)
-                If IndexOfLessThan > 0 Then
-                    Dim CShar_Types() As String = TypeString.Substring(IndexOfLessThan).
-                        Replace("<", "", StringComparison.InvariantCulture).
-                        Replace(">", "", StringComparison.InvariantCulture).Split(","c)
-                    For Each t As String In CShar_Types
-                        RetList.Add(ConvertToType(ConvertToType(t).ToString).ToString)
-                    Next
-                ElseIf TypeString.EndsWith("DictionaryEntry", StringComparison.InvariantCulture) Then
-                    RetList.Add(ConvertToType("Key").ToString)
-                    RetList.Add(ConvertToType("Value").ToString)
-                Else
-                    Stop
-                End If
-                Return RetList
             End Function
 
             Public Overrides Function VisitArrayRankSpecifier(node As CSS.ArrayRankSpecifierSyntax) As VB.VisualBasicSyntaxNode
@@ -103,7 +81,12 @@ Namespace CSharpToVBCodeConverter.Visual_Basic
                 Dim TypeSyntax As VB.VisualBasicSyntaxNode = node.ElementType.Accept(Me)
                 If TypeOf TypeSyntax Is VBS.ArrayTypeSyntax Then
                     Dim ArrayType As VBS.ArrayTypeSyntax = DirectCast(TypeSyntax, VBS.ArrayTypeSyntax)
-                    Dim NullableType As VBS.NullableTypeSyntax = VBFactory.NullableType(DirectCast(TypeSyntax, VBS.ArrayTypeSyntax).ElementType)
+                    Dim elementType As VBS.TypeSyntax = ArrayType.ElementType
+                    Dim ElementTypeStr As String = elementType.ToString
+                    If ElementTypeStr.EndsWith("?"c, StringComparison.OrdinalIgnoreCase) Then
+                        elementType = VBFactory.ParseTypeName(ElementTypeStr.TrimEnd("?"c))
+                    End If
+                    Dim NullableType As VBS.NullableTypeSyntax = VBFactory.NullableType(elementType)
                     Return VBFactory.ArrayType(NullableType, ArrayType.RankSpecifiers).WithConvertedTriviaFrom(node)
                 End If
                 Return VBFactory.NullableType(DirectCast(TypeSyntax, VBS.TypeSyntax)).WithConvertedTriviaFrom(node)
@@ -194,16 +177,18 @@ Namespace CSharpToVBCodeConverter.Visual_Basic
             Public Overrides Function VisitTypeParameterList(node As CSS.TypeParameterListSyntax) As VB.VisualBasicSyntaxNode
                 Dim Nodes As New List(Of VBS.TypeParameterSyntax)
                 Dim Separators As New List(Of SyntaxToken)
-                Dim CS_Separators As New List(Of SyntaxToken)
-                CS_Separators.AddRange(node.Parameters.GetSeparators)
+                Dim csSeparators As New List(Of SyntaxToken)
+                csSeparators.AddRange(node.Parameters.GetSeparators)
                 Dim FinalTrailingTrivia As New List(Of SyntaxTrivia)
-                For i As Integer = 0 To node.Parameters.Count - 2
-                    Dim p As CSS.TypeParameterSyntax = node.Parameters(i)
-                    Dim ItemWithTrivia As VBS.TypeParameterSyntax = DirectCast(p.Accept(Me), VBS.TypeParameterSyntax)
-                    FinalTrailingTrivia.AddRange(ItemWithTrivia.GetLeadingTrivia)
+                For index As Integer = 0 To node.Parameters.Count - 2
+                    Dim param As CSS.TypeParameterSyntax = node.Parameters(index)
+                    Dim ItemWithTrivia As VBS.TypeParameterSyntax = DirectCast(param.Accept(Me), VBS.TypeParameterSyntax)
+                    If ItemWithTrivia.GetLeadingTrivia.ContainsCommentOrDirectiveTrivia Then
+                        FinalTrailingTrivia.AddRange(ItemWithTrivia.GetLeadingTrivia)
+                    End If
                     FinalTrailingTrivia.AddRange(ItemWithTrivia.GetTrailingTrivia)
                     Nodes.Add(ItemWithTrivia.WithLeadingTrivia(SpaceTrivia).WithTrailingTrivia(SpaceTrivia))
-                    Separators.Add(CommaToken.WithConvertedTriviaFrom(CS_Separators(i)))
+                    Separators.Add(CommaToken.WithConvertedTriviaFrom(csSeparators(index)))
                 Next
                 Nodes.Add(DirectCast(node.Parameters.Last.Accept(Me).WithConvertedTrailingTriviaFrom(node.Parameters.Last), VBS.TypeParameterSyntax))
                 Dim SeparatedList As SeparatedSyntaxList(Of VBS.TypeParameterSyntax) = VBFactory.SeparatedList(Nodes, Separators)

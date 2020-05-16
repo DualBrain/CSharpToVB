@@ -3,27 +3,31 @@
     <OutputType>WinExe</OutputType>
     <TargetFramework>netcoreapp3.1</TargetFramework>
     <RootNamespace>CSharpToVBApp</RootNamespace>
-    <StartupObject>CSharpToVBApp.Form1</StartupObject>
+    <StartupObject>Sub Main</StartupObject>
     <UseWindowsForms>true</UseWindowsForms>
     <GenerateResourceUsePreserializedResources>true</GenerateResourceUsePreserializedResources>
+    <OptionCompare>Text</OptionCompare>
+    <OptionExplicit>On</OptionExplicit>
+    <OptionInfer>Off</OptionInfer>
+    <OptionStrict>On</OptionStrict>
   </PropertyGroup>
   <PropertyGroup>
     <LangVersion>16</LangVersion>
     <AssemblyName>CSharpToVBApp</AssemblyName>
+    <AssemblyTitle>C# To Visual Basic Converter</AssemblyTitle>
     <ApplicationManifest>My Project\app.manifest</ApplicationManifest>
     <NeutralLanguage>en-US</NeutralLanguage>
     <Authors>Paul M Cohen</Authors>
     <Company>Travel By Paul</Company>
     <RepositoryUrl>https://github.com/paul1956/CSharpToVB</RepositoryUrl>
-    <Description>Convert C# to VB, it can convert snippits, files, projects and folders. It expects valid C# code and does not handle bad code well.</Description>
-    <RepositoryType>GitHub</RepositoryType>
+    <Description>Convert C# to Visual Basic, it can convert snippets, individual files, folders, projects, and solutions.</Description>
+    <RepositoryType>git</RepositoryType>
     <ApplicationIcon>Icons\CStoVB.ico</ApplicationIcon>
-    <OptionInfer>Off</OptionInfer>
-    <OptionStrict>On</OptionStrict>
-    <Version>3.1.2.0</Version>
     <Product>CSharp To VB Converter</Product>
-    <Copyright>Copyright © 2020</Copyright>
+    <Copyright>Copyright (c) .NET Foundation and Contributors</Copyright>
     <PackageId>CSharp To VB Converter</PackageId>
+    <AssemblyVersion>4.4.2.2</AssemblyVersion>
+    <FileVersion>4.4.2.2</FileVersion>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
     <NoWarn />
@@ -34,9 +38,11 @@
     <WarningsAsErrors>41999,42016,42017,42018,42019,42020,42021,42022,42032,42036</WarningsAsErrors>
   </PropertyGroup>
   <ItemGroup>
-    <Compile Remove="CLSIDGuid.vb" />
-    <Compile Remove="OpenFolderDialog.vb" />
-    <Compile Remove="Settings.vb" />
+    <Compile Remove="VSSelectorDialog.Designer.vb" />
+    <Compile Remove="VSSelectorDialog.vb" />
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Remove="VSSelectorDialog.resx" />
   </ItemGroup>
 
   <ItemGroup>
@@ -46,28 +52,35 @@
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="Buildalyzer" Version="2.6.0" />
+    <PackageReference Include="Buildalyzer.Workspaces" Version="2.6.0" />
     <PackageReference Include="Microsoft.Build.Locator" Version="1.2.6" />
-    <PackageReference Include="Microsoft.CodeAnalysis.Analyzers" Version="2.9.8">
+    <PackageReference Include="Microsoft.CodeAnalysis.Analyzers" Version="3.0.0">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
-    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="3.4.0" />
-    <PackageReference Include="Microsoft.CodeAnalysis.FxCopAnalyzers" Version="2.9.8">
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="3.5.0" />
+    <PackageReference Include="Microsoft.CodeAnalysis.FxCopAnalyzers" Version="3.0.0">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
-    <PackageReference Include="Microsoft.CodeAnalysis.VisualBasic" Version="3.4.0" />
-    <PackageReference Include="Microsoft.CodeAnalysis.VisualBasic.Workspaces" Version="3.4.0" />
-    <PackageReference Include="Microsoft.CodeAnalysis.Workspaces.MSBuild" Version="3.4.0" />
-    <PackageReference Include="NuGet.Frameworks" Version="5.4.0" />
+    <PackageReference Include="Microsoft.CodeAnalysis.VisualBasic" Version="3.5.0" />
+    <PackageReference Include="Microsoft.CodeAnalysis.VisualBasic.Workspaces" Version="3.5.0" />
+    <PackageReference Include="Microsoft.Win32.Registry" Version="4.7.0" />
+    <PackageReference Include="NuGet.Frameworks" Version="5.5.1" />
     <PackageReference Include="PInvoke.Windows.Core" Version="0.6.6" />
+    <PackageReference Include="VBMsgBox" Version="1.0.2" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\CodeConverter\CodeConverter.vbproj" />
-    <ProjectReference Include="..\ManageProgressBar\ManageProgressBar.vbproj" />
   </ItemGroup>
 
   <ItemGroup>
+    <Compile Update="My Project\Application.Designer.vb">
+      <DesignTime>True</DesignTime>
+      <AutoGen>True</AutoGen>
+      <DependentUpon>Application.myapp</DependentUpon>
+    </Compile>
     <Compile Update="My Project\Settings.Designer.vb">
       <DesignTimeSharedInput>True</DesignTimeSharedInput>
       <AutoGen>True</AutoGen>
@@ -76,6 +89,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <None Update="My Project\Application.myapp">
+      <Generator>MyApplicationCodeGenerator</Generator>
+      <LastGenOutput>Application.Designer.vb</LastGenOutput>
+    </None>
     <None Update="My Project\Settings.settings">
       <Generator>SettingsSingleFileGenerator</Generator>
       <LastGenOutput>Settings.Designer.vb</LastGenOutput>

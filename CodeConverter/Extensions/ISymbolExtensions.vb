@@ -1,9 +1,6 @@
 ﻿' Licensed to the .NET Foundation under one or more agreements.
 ' The .NET Foundation licenses this file to you under the MIT license.
 ' See the LICENSE file in the project root for more information.
-Option Explicit On
-Option Infer Off
-Option Strict On
 
 Imports System.Runtime.CompilerServices
 
@@ -21,7 +18,7 @@ Namespace CSharpToVBCodeConverter.Util
             [Private]
         End Enum
 
-        Private Function IsNonNestedTypeAccessible(assembly As IAssemblySymbol, declaredAccessibility As Microsoft.CodeAnalysis.Accessibility, within As ISymbol) As Boolean
+        Private Function IsNonNestedTypeAccessible(assembly As IAssemblySymbol, declaredAccessibility As Accessibility, within As ISymbol) As Boolean
             Dim withinAssembly As IAssemblySymbol = If((TryCast(within, IAssemblySymbol)), DirectCast(within, INamedTypeSymbol).ContainingAssembly)
             Select Case declaredAccessibility
                 Case Microsoft.CodeAnalysis.Accessibility.NotApplicable, Microsoft.CodeAnalysis.Accessibility.Public
@@ -38,20 +35,22 @@ Namespace CSharpToVBCodeConverter.Util
                     Return withinAssembly.IsSameAssemblyOrHasFriendAccessTo(assembly)
 
                 Case Else
-                    Throw ExceptionUtilities.UnexpectedValue(declaredAccessibility)
+                    Throw UnexpectedValue(declaredAccessibility)
             End Select
         End Function
 
         ''' <summary>
         ''' Checks if 'symbol' is accessible from within 'within', which must be a INamedTypeSymbol
         ''' or an IAssemblySymbol.  If 'symbol' is accessed off of an expression then
-        ''' 'throughTypeOpt' is the type of that expression. This is needed to properly do protected
+        ''' "throughTypeOpt" is the type of that expression. This is needed to properly do protected
         ''' access checks. Sets "failedThroughTypeCheck" to true if this protected check failed.
         ''' </summary>
-        '// NOTE: I expect this function to be called a lot.  As such, I do not do any memory
-        '// allocations in the function itself (including not making any iterators).  This does mean
-        '// that certain helper functions that we'd like to call are in-lined in this method to
-        '// prevent the overhead of returning collections or enumerators.
+        ''' <remarks>
+        ''' NOTE: I expect this function to be called a lot.  As such, I do not do any memory
+        ''' allocations in the function itself (including not making any iterators).  This does mean
+        ''' that certain helper functions that we'd like to call are in-lined in this method to
+        ''' prevent the overhead of returning collections or enumerators.
+        '''</remarks>
         Private Function IsSymbolAccessibleCore(symbol As ISymbol, Within As ISymbol, throughTypeOpt As ITypeSymbol, ByRef failedThroughTypeCheck As Boolean) As Boolean ' must be assembly or named type symbol
             failedThroughTypeCheck = False
             Dim withinAssembly As IAssemblySymbol = If((TryCast(Within, IAssemblySymbol)), DirectCast(Within, INamedTypeSymbol).ContainingAssembly)
@@ -143,59 +142,61 @@ Namespace CSharpToVBCodeConverter.Util
 
         <Extension>
         Public Function ConvertISymbolToType(symbol As ISymbol, compilation As Compilation, Optional extensionUsedAsInstance As Boolean = False) As ITypeSymbol
+            If compilation Is Nothing Then
+                Throw New ArgumentNullException(NameOf(compilation))
+            End If
             Dim _type As ITypeSymbol = TryCast(symbol, ITypeSymbol)
             If _type IsNot Nothing Then
                 Return _type
             End If
-            If compilation Is Nothing Then
-                Throw New ArgumentNullException(NameOf(compilation))
-            End If
             Dim method As IMethodSymbol = TryCast(symbol, IMethodSymbol)
-            If method IsNot Nothing AndAlso Not method.Parameters.Any(Function(p As IParameterSymbol) p.RefKind <> RefKind.None) Then
-                ' Convert the symbol to Func<...> or Action<...>
-                If method.ReturnsVoid Then
-                    Dim count As Integer = If(extensionUsedAsInstance, method.Parameters.Length - 1, method.Parameters.Length)
-                    Dim skip As Integer = If(extensionUsedAsInstance, 1, 0)
-                    count = Math.Max(0, count)
-                    If count = 0 Then
-                        ' Action
-                        Return compilation.ActionType()
-                    Else
-                        ' Action<TArg1, ..., TArgN>
-                        Dim actionName As String = "System.Action`" & count
-                        Dim _ActionType As INamedTypeSymbol = compilation.GetTypeByMetadataName(actionName)
-
-                        If _ActionType IsNot Nothing Then
-                            Dim types() As ITypeSymbol = method.Parameters.
-                            Skip(skip).
-                            Select(Function(p As IParameterSymbol) If(p.Type, compilation.GetSpecialType(SpecialType.System_Object))).
-                            ToArray()
-                            Return _ActionType.Construct(types)
-                        End If
-                    End If
+            If method Is Nothing OrElse method.Parameters.Any(Function(p As IParameterSymbol) p.RefKind <> RefKind.None) Then
+                ' Otherwise, just default to object.
+                Return compilation.ObjectType
+            End If
+            ' Convert the symbol to Func<...> or Action<...>
+            If method.ReturnsVoid Then
+                Dim count As Integer = If(extensionUsedAsInstance, method.Parameters.Length - 1, method.Parameters.Length)
+                Dim skip As Integer = If(extensionUsedAsInstance, 1, 0)
+                count = Math.Max(0, count)
+                If count = 0 Then
+                    ' Action
+                    Return compilation.ActionType()
                 Else
-                    ' Func<TArg1,...,TArgN,TReturn>
-                    '
-                    ' +1 for the return type.
-                    Dim count As Integer = If(extensionUsedAsInstance, method.Parameters.Length - 1, method.Parameters.Length)
-                    Dim skip As Integer = If(extensionUsedAsInstance, 1, 0)
-                    Dim functionName As String = "System.Func`" & (count + 1)
-                    Dim functionType As INamedTypeSymbol = compilation.GetTypeByMetadataName(functionName)
+                    ' Action<TArg1, ..., TArgN>
+                    Dim actionName As String = "System.Action`" & count
+                    Dim _ActionType As INamedTypeSymbol = compilation.GetTypeByMetadataName(actionName)
 
-                    If functionType IsNot Nothing Then
-                        Try
-                            Dim CSharpTypes() As ITypeSymbol = method.Parameters.
-                            Skip(skip).Select(Function(p As IParameterSymbol) If(p.Type.IsErrorType, compilation.GetSpecialType(SpecialType.System_Object), p.Type)).
-                            Concat({method.ReturnType}).
-                            Select(Function(t As ITypeSymbol) If(t Is Nothing OrElse t.IsErrorType, compilation.GetSpecialType(SpecialType.System_Object), t)).
-                            ToArray()
-                            Return functionType.Construct(CSharpTypes)
-                        Catch ex As OperationCanceledException
-                            Throw
-                        Catch ex As Exception
-                            Stop
-                        End Try
+                    If _ActionType IsNot Nothing Then
+                        Dim types() As ITypeSymbol = method.Parameters.
+                        Skip(skip).
+                        Select(Function(p As IParameterSymbol) If(p.Type, compilation.GetSpecialType(SpecialType.System_Object))).
+                        ToArray()
+                        Return _ActionType.Construct(types)
                     End If
+                End If
+            Else
+                ' Func<TArg1,...,TArgN,TReturn>
+                '
+                ' +1 for the return type.
+                Dim count As Integer = If(extensionUsedAsInstance, method.Parameters.Length - 1, method.Parameters.Length)
+                Dim skip As Integer = If(extensionUsedAsInstance, 1, 0)
+                Dim functionName As String = "System.Func`" & (count + 1)
+                Dim functionType As INamedTypeSymbol = compilation.GetTypeByMetadataName(functionName)
+
+                If functionType IsNot Nothing Then
+                    Try
+                        Dim CSharpTypes() As ITypeSymbol = method.Parameters.
+                        Skip(skip).Select(Function(p As IParameterSymbol) If(p.Type.IsErrorType, compilation.GetSpecialType(SpecialType.System_Object), p.Type)).
+                        Concat({method.ReturnType}).
+                        Select(Function(t As ITypeSymbol) If(t Is Nothing OrElse t.IsErrorType, compilation.GetSpecialType(SpecialType.System_Object), t)).
+                        ToArray()
+                        Return functionType.Construct(CSharpTypes)
+                    Catch ex As OperationCanceledException
+                        Throw
+                    Catch ex As Exception
+                        Stop
+                    End Try
                 End If
             End If
 

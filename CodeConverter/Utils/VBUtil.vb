@@ -1,13 +1,10 @@
 ﻿' Licensed to the .NET Foundation under one or more agreements.
 ' The .NET Foundation licenses this file to you under the MIT license.
 ' See the LICENSE file in the project root for more information.
-Option Explicit On
-Option Infer Off
-Option Strict On
 
 Imports System.Runtime.CompilerServices
 
-Imports CSharpToVBCodeConverter.Visual_Basic
+Imports CSharpToVBCodeConverter.DestVisualBasic
 
 Imports Microsoft.CodeAnalysis
 
@@ -103,15 +100,17 @@ Namespace CSharpToVBCodeConverter.Util
                     Return VB.SyntaxKind.IsExpression
                 Case CS.SyntaxKind.AddressOfExpression
                     Return VB.SyntaxKind.AddressOfExpression
-                        ' Remainder of list are so caller don't crash but are not directly supported by VB
+' Remainder of list are so caller don't crash but are not directly supported by VB
                 Case CS.SyntaxKind.PointerIndirectionExpression
                     Return CType(CS.SyntaxKind.PointerIndirectionExpression, VB.SyntaxKind)
                 Case CS.SyntaxKind.CoalesceExpression
                     Return CType(CS.SyntaxKind.CoalesceExpression, VB.SyntaxKind)
                 Case CS.SyntaxKind.AsExpression
                     Return CType(CS.SyntaxKind.AsExpression, VB.SyntaxKind)
+                Case CS.SyntaxKind.IndexExpression
+                    Return CType(CS.SyntaxKind.IndexExpression, VB.SyntaxKind)
             End Select
-            Throw New NotSupportedException($"Expression.Kind {t.ToString} is not supported!")
+            Throw New NotSupportedException($"Expression.Kind {t} is not supported!")
         End Function
 
         ''' <summary>
@@ -183,7 +182,7 @@ Namespace CSharpToVBCodeConverter.Util
                     Return XorKeyword
             End Select
 
-            Throw New ArgumentOutOfRangeException($"op = {op.ToString}")
+            Throw New ArgumentOutOfRangeException($"op = {op}")
         End Function
 
         Public Function ConvertTypesTokenToKind(t As CS.SyntaxKind, Optional context As TokenContext = TokenContext.[Global]) As SyntaxToken
@@ -230,7 +229,7 @@ Namespace CSharpToVBCodeConverter.Util
                     Return ObjectKeyword
             End Select
 
-            Throw New NotSupportedException($"Type.Kind {t.ToString} is not supported!")
+            Throw New NotSupportedException($"Type.Kind {t} is not supported!")
         End Function
 
         <Extension()>

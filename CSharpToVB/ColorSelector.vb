@@ -1,16 +1,13 @@
 ﻿' Licensed to the .NET Foundation under one or more agreements.
 ' The .NET Foundation licenses this file to you under the MIT license.
 ' See the LICENSE file in the project root for more information.
-Option Explicit On
-Option Infer Off
-Option Strict On
 
 Imports System.IO
 
 Public Class ColorSelector
     Private Shared ReadOnly s_fullPath As String = Path.Combine(FileIO.SpecialDirectories.MyDocuments, "ColorDictionary.csv")
 
-    Private Shared ReadOnly s_colorMappingDictionary As New Dictionary(Of String, Color) From {
+    Private Shared ReadOnly s_colorMappingDictionary As New Dictionary(Of String, Color)(StringComparer.OrdinalIgnoreCase) From {
          {"class name", Color.FromArgb(0, 128, 128)},
          {"comment", Color.FromArgb(0, 100, 0)},
          {"constant name", Color.Black},
@@ -84,13 +81,15 @@ Public Class ColorSelector
     End Sub
 
     Friend Shared Function GetColorFromName(Name As String) As Color
-        Try
-            Return If(String.IsNullOrWhiteSpace(Name), s_colorMappingDictionary("default"), s_colorMappingDictionary(Name))
-        Catch ex As Exception
-            Debug.Print($"GetColorFromName missing({Name})")
-            Stop
-            Return s_colorMappingDictionary("error")
-        End Try
+        If String.IsNullOrWhiteSpace(Name) Then
+            Return s_colorMappingDictionary("default")
+        End If
+        Dim ReturnValue As Color = Nothing
+        If s_colorMappingDictionary.TryGetValue(Name, ReturnValue) Then
+            Return ReturnValue
+        End If
+        Debug.Print($"GetColorFromName missing({Name})")
+        Return s_colorMappingDictionary("error")
     End Function
 
     Public Shared Function GetColorNameList() As Dictionary(Of String, Color).KeyCollection

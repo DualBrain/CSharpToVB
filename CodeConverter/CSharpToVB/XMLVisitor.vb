@@ -1,10 +1,6 @@
 ﻿' Licensed to the .NET Foundation under one or more agreements.
 ' The .NET Foundation licenses this file to you under the MIT license.
 ' See the LICENSE file in the project root for more information.
-Option Explicit On
-Option Infer Off
-Option Strict On
-
 Imports System.Diagnostics.CodeAnalysis
 
 Imports CSharpToVBCodeConverter.Util
@@ -17,7 +13,7 @@ Imports VB = Microsoft.CodeAnalysis.VisualBasic
 Imports VBFactory = Microsoft.CodeAnalysis.VisualBasic.SyntaxFactory
 Imports VBS = Microsoft.CodeAnalysis.VisualBasic.Syntax
 
-Namespace CSharpToVBCodeConverter.Visual_Basic
+Namespace CSharpToVBCodeConverter.DestVisualBasic
 
     Friend Class XMLVisitor
         Inherits CS.CSharpSyntaxVisitor(Of VB.VisualBasicSyntaxNode)
@@ -199,21 +195,20 @@ Namespace CSharpToVBCodeConverter.Visual_Basic
                 VBFactory.XmlElementEndTag(DirectCast(StartTag.Name, VBS.XmlNameSyntax).WithConvertedTriviaFrom(node.EndTag)),
                 VBFactory.XmlElementEndTag(DirectCast(node.EndTag.Name.Accept(Me), VBS.XmlNameSyntax)))
             Try
-                For i As Integer = 0 To node.Content.Count - 1
-                    Dim C As CSS.XmlNodeSyntax = node.Content(i)
-                    Dim Node1 As VBS.XmlNodeSyntax = CType(C.Accept(Me).WithConvertedTriviaFrom(C), VBS.XmlNodeSyntax)
+                For Each e As IndexClass(Of CSS.XmlNodeSyntax) In node.Content.WithIndex
+                    Dim vbNode As VBS.XmlNodeSyntax = CType(e.Value.Accept(Me).WithConvertedTriviaFrom(e.Value), VBS.XmlNodeSyntax)
                     If NoEndTag Then
-                        Dim LastToken As SyntaxToken = Node1.GetLastToken
+                        Dim LastToken As SyntaxToken = vbNode.GetLastToken
                         If LastToken.ValueText.IsNewLine Then
-                            Node1 = Node1.ReplaceToken(LastToken, DirectCast(Nothing, SyntaxToken))
+                            vbNode = vbNode.ReplaceToken(LastToken, DirectCast(Nothing, SyntaxToken))
                         End If
                     End If
-                    Content = Content.Add(Node1)
+                    Content = Content.Add(vbNode)
                 Next
 
                 If node.EndTag?.HasLeadingTrivia AndAlso node.EndTag.GetLeadingTrivia(0).IsKind(CS.SyntaxKind.DocumentationCommentExteriorTrivia) Then
                     Dim NewLeadingTriviaList As New SyntaxTriviaList
-                    NewLeadingTriviaList = NewLeadingTriviaList.Add(VBFactory.DocumentationCommentExteriorTrivia(node.EndTag.GetLeadingTrivia(0).ToString.Replace("///", "'''", StringComparison.InvariantCulture)))
+                    NewLeadingTriviaList = NewLeadingTriviaList.Add(VBFactory.DocumentationCommentExteriorTrivia(node.EndTag.GetLeadingTrivia(0).ToString.Replace("///", "'''", StringComparison.Ordinal)))
                     Dim NewTokenList As New SyntaxTokenList
                     NewTokenList = NewTokenList.Add(VBFactory.XmlTextLiteralToken(NewLeadingTriviaList, " ", " ", New SyntaxTriviaList))
                     Content = Content.Add(VBFactory.XmlText(NewTokenList))

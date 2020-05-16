@@ -1,10 +1,6 @@
 ﻿' Licensed to the .NET Foundation under one or more agreements.
 ' The .NET Foundation licenses this file to you under the MIT license.
 ' See the LICENSE file in the project root for more information.
-Option Explicit On
-Option Infer Off
-Option Strict On
-
 Imports System.Runtime.CompilerServices
 
 Imports Microsoft.CodeAnalysis
@@ -137,7 +133,9 @@ Namespace CSharpToVBCodeConverter.Util
         ''' <returns>True if any Trivia is a Comment or a Directive</returns>
         <Extension>
         Public Function ContainsCommentOrDirectiveTrivia(TriviaList As SyntaxTriviaList) As Boolean
-            If TriviaList.Count = 0 Then Return False
+            If TriviaList.Count = 0 Then
+                Return False
+            End If
             For Each t As SyntaxTrivia In TriviaList
                 If t.IsWhitespaceOrEndOfLine Then
                     Continue For
@@ -154,10 +152,40 @@ Namespace CSharpToVBCodeConverter.Util
                 If t.RawKind = VB.SyntaxKind.SkippedTokensTrivia Then
                     Continue For
                 End If
+                If t.RawKind = CS.SyntaxKind.SkippedTokensTrivia Then
+                    Continue For
+                End If
                 If t.RawKind = VB.SyntaxKind.DisabledTextTrivia Then
                     Continue For
                 End If
+                If t.IsKind(VB.SyntaxKind.DocumentationCommentTrivia) Then
+                    Return True
+                End If
                 Stop
+            Next
+            Return False
+        End Function
+
+        ''' <summary>
+        ''' Syntax Trivia in any Language
+        ''' </summary>
+        ''' <param name="TriviaList"></param>
+        ''' <returns>True if any Trivia is a Comment or a Directive</returns>
+        <Extension>
+        Public Function ContainsDirectiveTrivia(TriviaList As SyntaxTriviaList, ParamArray Kinds() As VB.SyntaxKind) As Boolean
+            If TriviaList.Count = 0 Then Return False
+            For Each t As SyntaxTrivia In TriviaList
+                If t.IsDirective Then
+                    If Kinds.Length = 0 Then
+                        Return True
+                    End If
+                    For Each k As VB.SyntaxKind In Kinds
+                        If t.RawKind = k Then
+                            Return True
+                        End If
+                    Next
+                    Return False
+                End If
             Next
             Return False
         End Function
@@ -172,6 +200,9 @@ Namespace CSharpToVBCodeConverter.Util
                     Continue For
                 End If
                 If t.IsNone Then
+                    Continue For
+                End If
+                If t.IsDirective Then
                     Continue For
                 End If
                 If t.IsComment Then
@@ -197,6 +228,7 @@ Namespace CSharpToVBCodeConverter.Util
             Next
             Return False
         End Function
+
         <Extension>
         Public Function ContainsEOLTrivia(Token As SyntaxToken) As Boolean
             If Not Token.HasTrailingTrivia Then
@@ -233,12 +265,12 @@ Namespace CSharpToVBCodeConverter.Util
             If Trivia.IsKind(VB.SyntaxKind.DisabledTextTrivia) Then
                 NewTriviaList.AddRange(LeadingTriviaList)
                 NewTriviaList.Add(VBFactory.CommentTrivia($" ' TODO VB does not allow Disabled Text here, original text:"))
-                NewTriviaList.Add(VB_EOLTrivia)
-                Dim TextStrings() As String = Trivia.ToFullString.Split({vbCrLf}, StringSplitOptions.RemoveEmptyEntries)
+                NewTriviaList.Add(VBEOLTrivia)
+                Dim TextStrings() As String = Trivia.ToFullString.SplitLines
                 For Each TriviaAsString In TextStrings
                     NewTriviaList.AddRange(LeadingTriviaList)
-                    NewTriviaList.Add(VBFactory.CommentTrivia($" ' {TriviaAsString}".Replace("  ", " ", StringComparison.InvariantCulture).TrimEnd))
-                    NewTriviaList.Add(VB_EOLTrivia)
+                    NewTriviaList.Add(VBFactory.CommentTrivia($" ' {TriviaAsString}".Replace("  ", " ", StringComparison.Ordinal).TrimEnd))
+                    NewTriviaList.Add(VBEOLTrivia)
                 Next
                 If NewTriviaList.Last.IsKind(VB.SyntaxKind.EndOfLineTrivia) Then
                     NewTriviaList.RemoveAt(NewTriviaList.Count - 1)
@@ -266,11 +298,11 @@ Namespace CSharpToVBCodeConverter.Util
             NewTriviaList = New List(Of SyntaxTrivia) From {
                 SpaceTrivia,
                 LineContinuation,
-                VB_EOLTrivia,
+                VBEOLTrivia,
                 SpaceTrivia,
                 LineContinuation,
                 SpaceTrivia,
-                VBFactory.CommentTrivia($"{Msg}{TriviaAsString}".Replace("  ", " ", StringComparison.InvariantCulture).TrimEnd)
+                VBFactory.CommentTrivia($"{Msg}{TriviaAsString}".Replace("  ", " ", StringComparison.Ordinal).TrimEnd)
                 }
             Return NewTriviaList
         End Function
@@ -369,6 +401,7 @@ Namespace CSharpToVBCodeConverter.Util
             Next
             Return False
         End Function
+
         ''' <summary>
         ''' Remove directive trivia
         ''' </summary>

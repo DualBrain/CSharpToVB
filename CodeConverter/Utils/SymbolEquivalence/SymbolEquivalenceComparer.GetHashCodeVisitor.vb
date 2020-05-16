@@ -1,9 +1,6 @@
 ﻿' Licensed to the .NET Foundation under one or more agreements.
 ' The .NET Foundation licenses this file to you under the MIT license.
 ' See the LICENSE file in the project root for more information.
-Option Explicit On
-Option Infer Off
-Option Strict On
 
 Imports System.Collections.Immutable
 Imports System.Diagnostics.CodeAnalysis
@@ -125,7 +122,7 @@ Partial Friend Class SymbolEquivalenceComparer
         End Function
 
         Private Function CombineHashCodes(x As IParameterSymbol, currentHash As Integer) As Integer
-            Return CodeRefactoringHash.Combine(x.IsRefOrOut(), CodeRefactoringHash.Combine(x.Name, GetHashCode(x.Type, GetHashCode(x.ContainingSymbol, currentHash))))
+            Return CodeRefactoringHash.Combine(x.GetHashCode, CodeRefactoringHash.Combine(x.Name, GetHashCode(x.Type, GetHashCode(x.ContainingSymbol, currentHash))))
         End Function
 
         Private Function CombineHashCodes(x As IPointerTypeSymbol, currentHash As Integer) As Integer
@@ -205,8 +202,7 @@ Partial Friend Class SymbolEquivalenceComparer
             End If
 
             If x.TypeParameterKind = TypeParameterKind.Type AndAlso x.ContainingType.IsAnonymousType Then
-                ' Anonymous type type parameters compare by index as well to prevent
-                ' recursion.
+                ' Anonymous type, type parameters compare by index as well to prevent recursion.
                 Return currentHash
             End If
 

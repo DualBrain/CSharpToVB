@@ -1,13 +1,7 @@
 ﻿' Licensed to the .NET Foundation under one or more agreements.
 ' The .NET Foundation licenses this file to you under the MIT license.
 ' See the LICENSE file in the project root for more information.
-Option Explicit On
-Option Infer Off
-Option Strict On
-
 Imports System.Runtime.InteropServices
-
-Imports CSharpToVBApp
 
 Public Class AdvancedRTB
     Inherits RichTextBox
@@ -41,6 +35,7 @@ Public Class AdvancedRTB
     Public Event HorizScrollBarRightClicked(sender As Object, loc As Point)
 
     Public Event VertScrollBarRightClicked(sender As Object, loc As Point)
+
     ''' <summary>
     ''' Gets and Sets the Horizontal Scroll position of the control.
     ''' </summary>
@@ -89,6 +84,7 @@ Public Class AdvancedRTB
         }
         Dim unused As Integer = SetScrollInfo(hWnd:=handle, nBar:=SB_Orientation, lpsi:=scrollinfo, bRepaint:=v)
     End Sub
+
     Private Sub InitializeComponent()
         _components = New ComponentModel.Container()
         ContextMenuStrip1 = New ContextMenuStrip(_components)
@@ -172,6 +168,7 @@ Public Class AdvancedRTB
             ContextMenuStrip1.Show(Me, PointToClient(MousePosition))
         End If
     End Sub
+
 #Region "IDisposable Support"
 
     Private _disposedValue As Boolean ' To detect redundant calls
@@ -179,6 +176,7 @@ Public Class AdvancedRTB
     ' IDisposable
     Protected Overrides Sub Dispose(disposing As Boolean)
         If Not _disposedValue Then
+            MyBase.Dispose(disposing)
             If disposing Then
                 _components.Dispose()
                 ' TODO: dispose managed state (managed objects).

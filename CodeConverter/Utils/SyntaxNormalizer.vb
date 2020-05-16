@@ -1,10 +1,6 @@
 ﻿' Licensed to the .NET Foundation under one or more agreements.
 ' The .NET Foundation licenses this file to you under the MIT license.
 ' See the LICENSE file in the project root for more information.
-Option Explicit On
-Option Infer Off
-Option Strict On
-
 Imports System.Diagnostics.CodeAnalysis
 
 Imports CSharpToVBCodeConverter.Util
@@ -103,6 +99,11 @@ Namespace Microsoft.CodeAnalysis.VisualBasic.Syntax
             Return False
         End Function
 
+        Private Shared Function IsLastTokenOnLine(token As SyntaxToken) As Boolean
+            Return (token.HasTrailingTrivia AndAlso token.TrailingTrivia.Last.IsKind(SyntaxKind.ColonTrivia)) OrElse
+                (token.Parent IsNot Nothing AndAlso token.Parent.GetLastToken() = token)
+        End Function
+
         Private Shared Function IsNewLineChar(ch As Char) As Boolean
             ' new-line-character:
             '   Carriage return character (U+000D)
@@ -176,137 +177,7 @@ Namespace Microsoft.CodeAnalysis.VisualBasic.Syntax
             End Select
         End Function
 
-        Private Shared Function NeedsSeparatorBetween(trivia As SyntaxTrivia) As Boolean
-            Select Case trivia.Kind
-                Case SyntaxKind.None,
-                        SyntaxKind.WhitespaceTrivia,
-                        SyntaxKind.DocumentationCommentExteriorTrivia,
-                        SyntaxKind.EndOfLineTrivia
-                    Return False
-                Case SyntaxKind.LineContinuationTrivia
-                    Return True
-                Case Else
-                    Return Not SyntaxFacts.IsPreprocessorDirective(trivia.Kind)
-            End Select
-        End Function
-
-        Private Sub AddLinebreaksAfterElementsIfNeeded(Of TNode As SyntaxNode)(
-                                                    list As SyntaxList(Of TNode),
-            linebreaksBetweenElements As Integer,
-            linebreaksAfterLastElement As Integer
-        )
-            Dim lastElementIndex As Integer = list.Count - 1
-            For elementIndex As Integer = 0 To lastElementIndex
-                Dim listElement As TNode = list(elementIndex)
-                If listElement.IsKind(SyntaxKind.LabelStatement) Then
-                    ' always add line breaks after label
-                    _lineBreaksAfterToken(listElement.GetLastToken()) = 1
-                Else
-                    AddLinebreaksAfterTokenIfNeeded(listElement.GetLastToken(), If(elementIndex = lastElementIndex,
-                                                                                   linebreaksAfterLastElement,
-                                                                                   linebreaksBetweenElements))
-                End If
-            Next
-        End Sub
-
-        Private Sub AddLinebreaksAfterTokenIfNeeded(node As SyntaxToken, linebreaksAfterToken As Integer)
-            If Not EndsWithColonSeparator(node) Then
-                _lineBreaksAfterToken(node) = linebreaksAfterToken
-            End If
-        End Sub
-
-        Private Sub Free()
-            If _indentations IsNot Nothing Then
-                _indentations.Free()
-            End If
-        End Sub
-
-        Private Function GetEndOfLine() As SyntaxTrivia
-            Return _eolTrivia
-        End Function
-
-        Private Function GetIndentation(count As Integer, CurrentToken As SyntaxToken) As SyntaxTrivia
-            If ExtraIndentNeeded(_previousToken, CurrentToken) Then
-                count += 1
-            End If
-            Dim capacity As Integer = count + 1
-            If _indentations Is Nothing Then
-                _indentations = ArrayBuilder(Of SyntaxTrivia).GetInstance(capacity)
-            Else
-                _indentations.EnsureCapacity(capacity)
-            End If
-
-            For i As Integer = _indentations.Count To count
-                Dim text As String = If(i = 0, "", _indentations(i - 1).ToString() & _indentWhitespace)
-                _indentations.Add(If(_useElasticTrivia, SyntaxFactory.ElasticWhitespace(text), SyntaxFactory.Whitespace(text)))
-            Next
-
-            Return _indentations(count)
-        End Function
-
-        ''' <summary>
-        ''' indentation depth is the declaration depth for statements within the block. for start/end statements
-        ''' of these blocks (e.g. the if statement), it is a level less
-        ''' </summary>
-        Private Function GetIndentationDepth() As Integer
-            Debug.Assert(_indentationDepth >= 0)
-            Return _indentationDepth
-        End Function
-
-        Private Function GetIndentationDepth(trivia As SyntaxTrivia) As Integer
-            If SyntaxFacts.IsPreprocessorDirective(trivia.Kind) Then
-                Return 0
-            End If
-
-            Return GetIndentationDepth()
-        End Function
-
-        Private Function GetNextRelevantToken(token As SyntaxToken) As SyntaxToken
-            Dim nextToken As SyntaxToken = token.GetNextToken(Function(t As SyntaxToken)
-                                                                  Return Not t.IsKind(SyntaxKind.None)
-                                                              End Function, Function(t As SyntaxTrivia) False)
-
-            If _consideredSpan.Contains(nextToken.FullSpan) Then
-                Return nextToken
-            Else
-                Return Nothing
-            End If
-
-        End Function
-
-        Private Function GetSpace() As SyntaxTrivia
-            Return If(_useElasticTrivia, SpaceTrivia, SpaceTrivia)
-        End Function
-
-        Private Function IsLastTokenOnLine(token As SyntaxToken) As Boolean
-            Return (token.HasTrailingTrivia AndAlso token.TrailingTrivia.Last.IsKind(SyntaxKind.ColonTrivia)) OrElse
-                (token.Parent IsNot Nothing AndAlso token.Parent.GetLastToken() = token)
-        End Function
-
-        Private Function LineBreaksBetween(currentToken As SyntaxToken, nextToken As SyntaxToken) As Integer
-            ' First and last token may be of kind none
-            If currentToken.IsKind(SyntaxKind.None) OrElse nextToken.IsKind(SyntaxKind.None) Then
-                Return 0
-            End If
-
-            Dim numLineBreaks As Integer = 0
-            If _lineBreaksAfterToken.TryGetValue(currentToken, numLineBreaks) Then
-                Return Math.Max(1, numLineBreaks)
-            End If
-            'Structured Trivia may end in  NewLine so don't need to add another
-            If currentToken.ToFullString.IsNewLine Then
-                Return 0
-            End If
-            Return If(currentToken.ContainsEOLTrivia, 1, 0)
-        End Function
-
-        Private Sub MarkLastStatementIfNeeded(Of TNode As SyntaxNode)(list As SyntaxList(Of TNode))
-            If list.Any Then
-                _lastStatementsInBlocks.Add(list.Last)
-            End If
-        End Sub
-
-        Private Function NeedsSeparator(token As SyntaxToken, nextToken As SyntaxToken) As Boolean
+        Private Shared Function NeedsSeparator(token As SyntaxToken, nextToken As SyntaxToken) As Boolean
             If token.IsKind(SyntaxKind.EndOfFileToken) Then
                 Return False
             End If
@@ -519,6 +390,131 @@ Namespace Microsoft.CodeAnalysis.VisualBasic.Syntax
             Return True
         End Function
 
+        Private Shared Function NeedsSeparatorBetween(trivia As SyntaxTrivia) As Boolean
+            Select Case trivia.Kind
+                Case SyntaxKind.None,
+                        SyntaxKind.WhitespaceTrivia,
+                        SyntaxKind.DocumentationCommentExteriorTrivia,
+                        SyntaxKind.EndOfLineTrivia
+                    Return False
+                Case SyntaxKind.LineContinuationTrivia
+                    Return True
+                Case Else
+                    Return Not SyntaxFacts.IsPreprocessorDirective(trivia.Kind)
+            End Select
+        End Function
+
+        Private Sub AddLinebreaksAfterElementsIfNeeded(Of TNode As SyntaxNode)(
+                                                    list As SyntaxList(Of TNode),
+            linebreaksBetweenElements As Integer,
+            linebreaksAfterLastElement As Integer
+        )
+            Dim lastElementIndex As Integer = list.Count - 1
+            For elementIndex As Integer = 0 To lastElementIndex
+                Dim listElement As TNode = list(elementIndex)
+                If listElement.IsKind(SyntaxKind.LabelStatement) Then
+                    ' always add line breaks after label
+                    _lineBreaksAfterToken(listElement.GetLastToken()) = 1
+                Else
+                    AddLinebreaksAfterTokenIfNeeded(listElement.GetLastToken(), If(elementIndex = lastElementIndex,
+                                                                                   linebreaksAfterLastElement,
+                                                                                   linebreaksBetweenElements))
+                End If
+            Next
+        End Sub
+
+        Private Sub AddLinebreaksAfterTokenIfNeeded(node As SyntaxToken, linebreaksAfterToken As Integer)
+            If Not EndsWithColonSeparator(node) Then
+                _lineBreaksAfterToken(node) = linebreaksAfterToken
+            End If
+        End Sub
+
+        Private Sub Free()
+            If _indentations IsNot Nothing Then
+                _indentations.Free()
+            End If
+        End Sub
+
+        Private Function GetEndOfLine() As SyntaxTrivia
+            Return _eolTrivia
+        End Function
+
+        Private Function GetIndentation(count As Integer, CurrentToken As SyntaxToken) As SyntaxTrivia
+            If ExtraIndentNeeded(_previousToken, CurrentToken) Then
+                count += 1
+            End If
+            Dim capacity As Integer = count + 1
+            If _indentations Is Nothing Then
+                _indentations = ArrayBuilder(Of SyntaxTrivia).GetInstance(capacity)
+            Else
+                _indentations.EnsureCapacity(capacity)
+            End If
+
+            For Index As Integer = _indentations.Count To count
+                Dim text As String = If(Index = 0, "", _indentations(Index - 1).ToString() & _indentWhitespace)
+                _indentations.Add(If(_useElasticTrivia, SyntaxFactory.ElasticWhitespace(text), SyntaxFactory.Whitespace(text)))
+            Next
+
+            Return _indentations(count)
+        End Function
+
+        ''' <summary>
+        ''' indentation depth is the declaration depth for statements within the block. for start/end statements
+        ''' of these blocks (e.g. the if statement), it is a level less
+        ''' </summary>
+        Private Function GetIndentationDepth() As Integer
+            Debug.Assert(_indentationDepth >= 0)
+            Return _indentationDepth
+        End Function
+
+        Private Function GetIndentationDepth(trivia As SyntaxTrivia) As Integer
+            If SyntaxFacts.IsPreprocessorDirective(trivia.Kind) Then
+                Return 0
+            End If
+
+            Return GetIndentationDepth()
+        End Function
+
+        Private Function GetNextRelevantToken(token As SyntaxToken) As SyntaxToken
+            Dim nextToken As SyntaxToken = token.GetNextToken(Function(t As SyntaxToken)
+                                                                  Return Not t.IsKind(SyntaxKind.None)
+                                                              End Function, Function(t As SyntaxTrivia) False)
+
+            If _consideredSpan.Contains(nextToken.FullSpan) Then
+                Return nextToken
+            Else
+                Return Nothing
+            End If
+
+        End Function
+
+        Private Function GetSpace() As SyntaxTrivia
+            Return If(_useElasticTrivia, SpaceTrivia, SpaceTrivia)
+        End Function
+
+        Private Function LineBreaksBetween(currentToken As SyntaxToken, nextToken As SyntaxToken) As Integer
+            ' First and last token may be of kind none
+            If currentToken.IsKind(SyntaxKind.None) OrElse nextToken.IsKind(SyntaxKind.None) Then
+                Return 0
+            End If
+
+            Dim numLineBreaks As Integer = 0
+            If _lineBreaksAfterToken.TryGetValue(currentToken, numLineBreaks) Then
+                Return Math.Max(1, numLineBreaks)
+            End If
+            'Structured Trivia may end in  NewLine so don't need to add another
+            If currentToken.ToFullString.IsNewLine Then
+                Return 0
+            End If
+            Return If(currentToken.ContainsEOLTrivia, 1, 0)
+        End Function
+
+        Private Sub MarkLastStatementIfNeeded(Of TNode As SyntaxNode)(list As SyntaxList(Of TNode))
+            If list.Any Then
+                _lastStatementsInBlocks.Add(list.Last)
+            End If
+        End Sub
+
         ''' <summary>
         '''
         ''' </summary>
@@ -547,7 +543,7 @@ Namespace Microsoft.CodeAnalysis.VisualBasic.Syntax
 
             Dim currentTriviaList As ArrayBuilder(Of SyntaxTrivia) = ArrayBuilder(Of SyntaxTrivia).GetInstance()
             Try
-                For i As Integer = 1 To lineBreaksBefore
+                For index As Integer = 1 To lineBreaksBefore
                     If _eolLeadingTriviaCount < 2 Then
                         currentTriviaList.Add(GetEndOfLine())
                         _eolLeadingTriviaCount += 1
@@ -557,8 +553,8 @@ Namespace Microsoft.CodeAnalysis.VisualBasic.Syntax
                 Next
 
                 Dim MinLeadingSpaces As Integer = 0
-                For i As Integer = 0 To triviaList.Count - 1
-                    Dim Trivia As SyntaxTrivia = triviaList(i)
+                For Each e As IndexClass(Of SyntaxTrivia) In triviaList.WithIndex
+                    Dim Trivia As SyntaxTrivia = e.Value
                     ' just keep non whitespace trivia
                     If Trivia.IsKind(SyntaxKind.WhitespaceTrivia) Then
                         If _usePreserveCRLF AndAlso Not _afterIndentation Then
@@ -566,7 +562,7 @@ Namespace Microsoft.CodeAnalysis.VisualBasic.Syntax
                         End If
                         Continue For
                     ElseIf Trivia.FullWidth = 0 OrElse
-                         (Trivia.IsKind(SyntaxKind.EndOfLineTrivia) And Not _usePreserveCRLF) Then
+                             (Trivia.IsKind(SyntaxKind.EndOfLineTrivia) And Not _usePreserveCRLF) Then
                         Continue For
                     End If
                     If Trivia.IsKind(SyntaxKind.EndOfLineTrivia) Then
@@ -575,8 +571,8 @@ Namespace Microsoft.CodeAnalysis.VisualBasic.Syntax
                                 currentTriviaList.Add(GetEndOfLine())
                                 _eolTraiingTriviaCount += 1
                             Else
-                                If currentTriviaList.Last.IsKind(SyntaxKind.CommentTrivia) AndAlso i < triviaList.Count - 1 Then
-                                    currentTriviaList.Add(VB_EOLTrivia)
+                                If currentTriviaList.Last.IsKind(SyntaxKind.CommentTrivia) AndAlso Not e.IsLast Then
+                                    currentTriviaList.Add(VBEOLTrivia)
                                 End If
                                 Continue For
                             End If
@@ -608,15 +604,15 @@ Namespace Microsoft.CodeAnalysis.VisualBasic.Syntax
                     ' check if there's a separator or a line break needed between the trivia itself
                     Dim tokenParent As SyntaxNode = Trivia.Token.Parent
                     Dim needsSeparator As Boolean =
-                        Not (Trivia.IsKind(SyntaxKind.ColonTrivia) AndAlso tokenParent IsNot Nothing AndAlso tokenParent.IsKind(SyntaxKind.LabelStatement)) AndAlso
-                        Not (tokenParent IsNot Nothing AndAlso tokenParent.Parent IsNot Nothing AndAlso tokenParent.Parent.IsKind(SyntaxKind.CrefReference)) AndAlso
-                        (
-                            (currentTriviaList.Count > 0 AndAlso NeedsSeparatorBetween(currentTriviaList.Last()) AndAlso Not EndsInLineBreak(currentTriviaList.Last())) OrElse
-                            (currentTriviaList.Count = 0 AndAlso isTrailing)
-                        )
+                            Not (Trivia.IsKind(SyntaxKind.ColonTrivia) AndAlso tokenParent IsNot Nothing AndAlso tokenParent.IsKind(SyntaxKind.LabelStatement)) AndAlso
+                            Not (tokenParent IsNot Nothing AndAlso tokenParent.Parent IsNot Nothing AndAlso tokenParent.Parent.IsKind(SyntaxKind.CrefReference)) AndAlso
+                            (
+                                (currentTriviaList.Any AndAlso NeedsSeparatorBetween(currentTriviaList.Last()) AndAlso Not EndsInLineBreak(currentTriviaList.Last())) OrElse
+                                (currentTriviaList.Count = 0 AndAlso isTrailing)
+                            )
 
                     Dim needsLineBreak As Boolean = NeedsLineBreakBefore(Trivia) OrElse
-                        (currentTriviaList.Count > 0 AndAlso NeedsLineBreakBetween(currentTriviaList.Last(), Trivia, isTrailing))
+                            (currentTriviaList.Any AndAlso NeedsLineBreakBetween(currentTriviaList.Last(), Trivia, isTrailing))
 
                     If needsLineBreak AndAlso Not _afterLineBreak Then
                         If _eolTraiingTriviaCount = 0 Then
@@ -642,7 +638,7 @@ Namespace Microsoft.CodeAnalysis.VisualBasic.Syntax
                         _afterIndentation = False
                     End If
                     Dim NeedExtraSpace As Boolean = _isInStructuredTrivia AndAlso
-                            SyntaxFactory.DocumentationCommentExteriorTrivia(SyntaxFacts.GetText(SyntaxKind.DocumentationCommentExteriorTrivia)).ToString = Trivia.ToString
+                                SyntaxFactory.DocumentationCommentExteriorTrivia(SyntaxFacts.GetText(SyntaxKind.DocumentationCommentExteriorTrivia)).ToString = Trivia.ToString
                     If Trivia.HasStructure Then
                         Dim structuredTrivia As SyntaxTrivia = VisitStructuredTrivia(Trivia)
                         currentTriviaList.Add(structuredTrivia)
@@ -677,11 +673,11 @@ Namespace Microsoft.CodeAnalysis.VisualBasic.Syntax
                 Next
 
                 If lineBreaksAfter > 0 Then
-                    If currentTriviaList.Count > 0 AndAlso EndsInLineBreak(currentTriviaList.Last()) Then
+                    If currentTriviaList.Any AndAlso EndsInLineBreak(currentTriviaList.Last()) Then
                         lineBreaksAfter -= 1
                     End If
 
-                    For i As Integer = 0 To lineBreaksAfter - 1
+                    For index As Integer = 0 To lineBreaksAfter - 1
                         If Not isTrailing Then
                             Throw UnexpectedValue("IsTrailing")
                         End If
@@ -692,7 +688,7 @@ Namespace Microsoft.CodeAnalysis.VisualBasic.Syntax
                         _eolTraiingTriviaCount += 1
                         _afterLineBreak = True
                         _afterIndentation = False
-                    Next i
+                    Next index
 
                 ElseIf mustHaveSeparator Then
                     currentTriviaList.Add(GetSpace())
@@ -756,15 +752,15 @@ Namespace Microsoft.CodeAnalysis.VisualBasic.Syntax
         '''   implements IBar3
         '''   inherits Bar1
         '''
-        '''   Public Sub Boo()
-        '''   End Sub
+        ''' Public Sub Boo()
+        '''    End Sub
         ''' End Class
         '''
         ''' or
         '''
         ''' Class Goo
         '''
-        '''   Public Sub Boo()
+        ''' Public Sub Boo()
         '''   End Sub
         ''' End Class
         '''
@@ -773,11 +769,11 @@ Namespace Microsoft.CodeAnalysis.VisualBasic.Syntax
         ''' </summary>
         Private Sub VisitTypeBlockSyntax(node As TypeBlockSyntax)
 
-            Dim hasImplements As Boolean = node.Implements.Count > 0
-            Dim hasInherits As Boolean = node.Inherits.Count > 0
+            Dim hasImplements As Boolean = node.Implements.Any
+            Dim hasInherits As Boolean = node.Inherits.Any
 
             ' add a line break between begin statement and the ones from the statement list
-            If Not hasInherits AndAlso Not hasImplements AndAlso node.Members.Count > 0 Then
+            If Not hasInherits AndAlso Not hasImplements AndAlso node.Members.Any Then
                 AddLinebreaksAfterTokenIfNeeded(node.BlockStatement.GetLastToken(), 2)
             Else
                 AddLinebreaksAfterTokenIfNeeded(node.BlockStatement.GetLastToken(), 1)
@@ -1277,7 +1273,7 @@ Namespace Microsoft.CodeAnalysis.VisualBasic.Syntax
         ''' Separate each member of a namespace with an empty line.
         ''' </summary>
         Public Overrides Function VisitNamespaceBlock(node As NamespaceBlockSyntax) As SyntaxNode
-            If node.Members.Count > 0 Then
+            If node.Members.Any Then
                 ' Add an empty line after the namespace begin if there
                 ' is not a namespace declaration as first member
                 If node.Members(0).Kind <> SyntaxKind.NamespaceBlock Then
@@ -1454,7 +1450,7 @@ Namespace Microsoft.CodeAnalysis.VisualBasic.Syntax
                 Dim LeadingTrivia As SyntaxTriviaList = token.LeadingTrivia
 
                 If _previousToken.IsKind(SyntaxKind.GreaterThanToken) AndAlso token.IsKind(SyntaxKind.LessThanToken) Then
-                    Do While LeadingTrivia.Count > 0 AndAlso LeadingTrivia(0).IsKind(SyntaxKind.EndOfLineTrivia)
+                    Do While LeadingTrivia.Any AndAlso LeadingTrivia(0).IsKind(SyntaxKind.EndOfLineTrivia)
                         LeadingTrivia = LeadingTrivia.RemoveAt(0)
                     Loop
 
@@ -1476,7 +1472,7 @@ Namespace Microsoft.CodeAnalysis.VisualBasic.Syntax
                 ' we only add one of the line breaks to trivia of this token. The remaining ones will be leading trivia
                 ' for the next token
                 Dim numLineBreaksAfter As Integer = If(_usePreserveCRLF, LineBreaksBetween(token, nextToken), If(LineBreaksBetween(token, nextToken) > 0, 1, 0))
-                Dim needsSeparatorAfter As Boolean = If(numLineBreaksAfter > 0, False, NeedsSeparator(token, nextToken))
+                Dim needsSeparatorAfter As Boolean = numLineBreaksAfter <= 0 AndAlso NeedsSeparator(token, nextToken)
 
                 _eolTraiingTriviaCount = 0
                 newToken = newToken.WithTrailingTrivia(

@@ -1,25 +1,37 @@
 ﻿' Licensed to the .NET Foundation under one or more agreements.
 ' The .NET Foundation licenses this file to you under the MIT license.
 ' See the LICENSE file in the project root for more information.
-Option Explicit On
-Option Infer Off
-Option Strict On
-
 Imports System.IO
 Imports System.Reflection
 Imports System.Reflection.Metadata
 Imports System.Reflection.PortableExecutable
 Imports System.Runtime.CompilerServices
-Imports System.Windows.Forms
+
 Imports Microsoft.CodeAnalysis
 
 Public Module SharedReferences
     Private ReadOnly s_cSharpReferences As New List(Of MetadataReference)
+    Private ReadOnly s_frameworkDirectory As String = Directory.GetParent(GetType(Object).Assembly.Location).FullName
     Private ReadOnly s_referencePath As New List(Of String)
     Private ReadOnly s_visualBasicReferences As New List(Of MetadataReference)
-    Private ReadOnly s_frameworkDirectory As String = Directory.GetParent(GetType(Object).Assembly.Location).FullName
 
-    Private Sub BuildReferenceList(WindowsFormsLocation As String, OptionalReference As IReadOnlyList(Of MetadataReference))
+    Private Sub AddReferences(L As List(Of String), FileNameWithPath As String)
+        If L.Contains(FileNameWithPath) Then
+            Return
+        End If
+        Dim hasMetadataOrIsAssembly As (HasMetadata As Boolean, IsAssembly As Boolean) = HasMetadataIsAssembly(FileNameWithPath)
+
+        If Not hasMetadataOrIsAssembly.HasMetadata Then
+            Return
+        End If
+        L.Add(FileNameWithPath)
+        If hasMetadataOrIsAssembly.IsAssembly Then
+            s_cSharpReferences.Add(MetadataReference.CreateFromFile(FileNameWithPath))
+        End If
+        s_visualBasicReferences.Add(MetadataReference.CreateFromFile(FileNameWithPath))
+    End Sub
+
+    Private Sub BuildReferenceList(WindowsFormsLocation As String)
         If s_referencePath.Any Then
             Return
         End If
@@ -29,14 +41,14 @@ Public Module SharedReferences
 
         'SystemReferences
         For Each DLL_Path As String In Directory.GetFiles(s_frameworkDirectory, "*.dll")
-            If DLL_Path.EndsWith("System.EnterpriseServices.Wrapper.dll", StringComparison.InvariantCulture) Then
+            If DLL_Path.EndsWith("System.EnterpriseServices.Wrapper.dll", StringComparison.Ordinal) Then
                 Continue For
             End If
             AddReferences(s_referencePath, DLL_Path)
         Next
 
         ' ComponentModelEditorBrowsable
-        Location = GetType(System.ComponentModel.EditorBrowsableAttribute).GetAssemblyLocation
+        Location = GetType(ComponentModel.EditorBrowsableAttribute).GetAssemblyLocation
         AddReferences(s_referencePath, Location)
 
         ' SystemCore
@@ -56,29 +68,6 @@ Public Module SharedReferences
             AddReferences(s_referencePath, WindowsFormsLocation)
         End If
 
-        ' Optional References
-        If OptionalReference?.Any Then
-            s_visualBasicReferences.AddRange(OptionalReference)
-            s_cSharpReferences.AddRange(OptionalReference)
-        End If
-    End Sub
-
-    Private Sub AddReferences(L As List(Of String), FileNameWithPath As String)
-        If L.Contains(FileNameWithPath) Then
-            Return
-        End If
-        Dim hasMetadataOrIsAssembly As (HasMetadata As Boolean, IsAssembly As Boolean) = HasMetadataIsAssembly(FileNameWithPath)
-
-        If Not hasMetadataOrIsAssembly.HasMetadata Then
-            Return
-        End If
-        L.Add(FileNameWithPath)
-        Application.DoEvents()
-        If hasMetadataOrIsAssembly.IsAssembly Then
-            s_cSharpReferences.Add(MetadataReference.CreateFromFile(FileNameWithPath))
-        End If
-        Application.DoEvents()
-        s_visualBasicReferences.Add(MetadataReference.CreateFromFile(FileNameWithPath))
     End Sub
 
     Private Function HasMetadataIsAssembly(sourcePath As String) As (HasMetadata As Boolean, IsAssembly As Boolean)
@@ -98,16 +87,31 @@ Public Module SharedReferences
         End Using
     End Function
 
+    <Extension>
+    Friend Function GetAssemblyLocation(type As Type) As String
+        Dim asm As Assembly = type.GetTypeInfo().Assembly
+        Dim locationProperty As PropertyInfo = asm.GetType().GetRuntimeProperties().Single(Function(p As PropertyInfo) p.Name = "Location")
+        Return CStr(locationProperty.GetValue(asm))
+    End Function
+
     Public Function CSharpReferences(WindowsFormsLocation As String, OptionalReference As IReadOnlyList(Of MetadataReference)) As List(Of MetadataReference)
+
         If WindowsFormsLocation Is Nothing Then
             WindowsFormsLocation = ""
         End If
         Try
             SyncLock s_referencePath
                 If Not s_cSharpReferences.Any Then
-                    BuildReferenceList(WindowsFormsLocation, OptionalReference)
+                    BuildReferenceList(WindowsFormsLocation)
                 End If
-                Return s_cSharpReferences.ToList
+                If OptionalReference IsNot Nothing Then
+                    ' Optional References
+                    Dim tempList As New List(Of MetadataReference)
+                    tempList.AddRange(s_cSharpReferences)
+                    tempList.AddRange(OptionalReference)
+                    Return tempList
+                End If
+                Return s_cSharpReferences
             End SyncLock
         Catch ex As OperationCanceledException
             Throw
@@ -124,23 +128,24 @@ Public Module SharedReferences
             End If
             SyncLock s_referencePath
                 If Not s_visualBasicReferences.Any Then
-                    BuildReferenceList(WindowsFormsLocation, OptionalReference)
+                    BuildReferenceList(WindowsFormsLocation)
                 End If
-                Return s_visualBasicReferences.ToList
+                If OptionalReference IsNot Nothing Then
+                    ' Optional References
+                    Dim tempList As New List(Of MetadataReference)
+                    tempList.AddRange(s_visualBasicReferences)
+                    tempList.AddRange(OptionalReference)
+                    Return tempList
+                End If
+                Return s_visualBasicReferences
             End SyncLock
         Catch ex As OperationCanceledException
             Stop
         Catch ex As Exception
             Stop
+            Throw
         End Try
         Return Nothing
-    End Function
-
-    <Extension>
-    Friend Function GetAssemblyLocation(type As Type) As String
-        Dim asm As Assembly = type.GetTypeInfo().Assembly
-        Dim locationProperty As PropertyInfo = asm.GetType().GetRuntimeProperties().Single(Function(p As PropertyInfo) p.Name = "Location")
-        Return CStr(locationProperty.GetValue(asm))
     End Function
 
 End Module

@@ -1,10 +1,6 @@
 ﻿' Licensed to the .NET Foundation under one or more agreements.
 ' The .NET Foundation licenses this file to you under the MIT license.
 ' See the LICENSE file in the project root for more information.
-Option Explicit On
-Option Infer Off
-Option Strict On
-
 Imports Microsoft.CodeAnalysis.PooledObjects1
 
 Namespace Microsoft.CodeAnalysis
@@ -14,7 +10,7 @@ Namespace Microsoft.CodeAnalysis
         Private Const None As Integer = 0
 
         Private Shared ReadOnly s_childEnumeratorStackPool As New ObjectPool(Of Stack(Of ChildSyntaxList.Enumerator))(Function() New Stack(Of ChildSyntaxList.Enumerator)(), 10)
-        Public Shared ReadOnly Instance As SyntaxNavigator = New SyntaxNavigator()
+        Public Shared ReadOnly s_instance As SyntaxNavigator = New SyntaxNavigator()
 
         Private Sub New()
         End Sub
@@ -29,7 +25,6 @@ Namespace Microsoft.CodeAnalysis
                 If trivia.HasStructure AndAlso stepInto(trivia) Then
                     Dim [structure] As SyntaxNode = trivia.GetStructure()
                     Dim token As SyntaxToken = GetFirstToken([structure], predicate, stepInto)
-                    'BC30518: Overload resolution failed because no accessible 'GetFirstToken' can be called with these arguments:
                     If token.RawKind <> None Then
                         Return token
                     End If
@@ -68,7 +63,7 @@ Namespace Microsoft.CodeAnalysis
             Dim stack As Stack(Of ChildSyntaxList.Enumerator) = s_childEnumeratorStackPool.Allocate()
             Try
                 stack.Push(current.ChildNodesAndTokens().GetEnumerator())
-                While stack.Count > 0
+                While stack.Any
                     Dim en As ChildSyntaxList.Enumerator = stack.Pop()
                     If en.MoveNext() Then
                         Dim child As SyntaxNodeOrToken = en.Current

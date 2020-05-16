@@ -1,9 +1,6 @@
 ﻿' Licensed to the .NET Foundation under one or more agreements.
 ' The .NET Foundation licenses this file to you under the MIT license.
 ' See the LICENSE file in the project root for more information.
-Option Explicit On
-Option Infer Off
-Option Strict On
 
 <ComponentModel.DefaultProperty("ParentRichTextBox")>
 Public Class LineNumbersForRichTextBox : Inherits Control
@@ -551,7 +548,7 @@ Public Class LineNumbersForRichTextBox : Inherits Control
         _zAutoSizing_Size = New Size(0, 0)
         _zLineNumbersFormat = "0"  'initial setting
         '   To measure the LineNumber's width, its Format 0 is replaced by w as that is likely to be one of the widest characters in non-mono-space fonts.
-        If _zAutoSizing = True Then _zAutoSizing_Size = New Size(TextRenderer.MeasureText(_zLineNumbersFormat.Replace("0".ToCharArray, "W".ToCharArray, StringComparison.InvariantCulture), Font).Width, 0)
+        If _zAutoSizing = True Then _zAutoSizing_Size = New Size(TextRenderer.MeasureText(_zLineNumbersFormat.Replace("0".ToCharArray, "W".ToCharArray, StringComparison.Ordinal), Font).Width, 0)
 
         If String.IsNullOrWhiteSpace(ZParent.Text) Then
             Exit Sub
@@ -640,7 +637,7 @@ Public Class LineNumbersForRichTextBox : Inherits Control
         End If
 
         '   To measure the LineNumber's width, its Format 0 is replaced by w as that is likely to be one of the widest characters in non-mono-space fonts.
-        If _zAutoSizing = True Then _zAutoSizing_Size = New Size(TextRenderer.MeasureText(_zLineNumbersFormat.Replace("0".ToCharArray, "W".ToCharArray, StringComparison.InvariantCulture), Font).Width, 0)
+        If _zAutoSizing = True Then _zAutoSizing_Size = New Size(TextRenderer.MeasureText(_zLineNumbersFormat.Replace("0".ToCharArray, "W".ToCharArray, StringComparison.Ordinal), Font).Width, 0)
     End Sub
 
     Private Sub ZParent_Changed(sender As Object, e As EventArgs) Handles ZParent.LocationChanged, ZParent.Move, ZParent.Resize, ZParent.DockChanged, ZParent.TextChanged, ZParent.MultilineChanged
@@ -879,7 +876,7 @@ Public Class LineNumbersForRichTextBox : Inherits Control
                 zGP_MarginLines.Widen(zPen)
             End If
 
-            Dim zRegion As New Region(MyBase.ClientRectangle)
+            Dim zRegion As New Region(ClientRectangle)
             ' ----------------------------------------------
             ' --- SeeThroughMode
             '   combine all the GraphicsPaths (= zGP_... ) and set them as the region for the control.

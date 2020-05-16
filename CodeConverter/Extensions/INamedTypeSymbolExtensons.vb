@@ -1,30 +1,29 @@
 ﻿' Licensed to the .NET Foundation under one or more agreements.
 ' The .NET Foundation licenses this file to you under the MIT license.
 ' See the LICENSE file in the project root for more information.
-Option Explicit On
-Option Infer Off
-Option Strict On
 
 Imports System.Collections.Immutable
 Imports System.Runtime.CompilerServices
 Imports System.Threading
 
+Imports CSharpToVBCodeConverter.DestVisualBasic
+
 Imports Microsoft.CodeAnalysis
-Imports Microsoft.CodeAnalysis.VisualBasic.Syntax
 
 Imports VBFactory = Microsoft.CodeAnalysis.VisualBasic.SyntaxFactory
+Imports VBS = Microsoft.CodeAnalysis.VisualBasic.Syntax
 
 Namespace CSharpToVBCodeConverter.Util
 
     Public Module INamedTypeSymbolExtensons
 
-        Private Function ConvertISymbolToNameSyntaxInterfaceName(interfaceMethod As ISymbol) As NameSyntax
+        Private Function ConvertISymbolToNameSyntaxInterfaceName(interfaceMethod As ISymbol) As VBS.NameSyntax
             Dim TypeString As String = interfaceMethod.ContainingSymbol.ToString
-            TypeString = TypeString.Replace("<", "(Of ", StringComparison.InvariantCulture).
-                                    Replace(">", ")", StringComparison.InvariantCulture).
-                                    Replace("[", "(", StringComparison.InvariantCulture).
-                                    Replace("]", ")", StringComparison.InvariantCulture)
-            Dim FirstTupleIndex As Integer = TypeString.IndexOf("(Of (", StringComparison.InvariantCulture)
+            TypeString = TypeString.Replace("<", "(Of ", StringComparison.Ordinal).
+                                    Replace(">", ")", StringComparison.Ordinal).
+                                    Replace("[", "(", StringComparison.Ordinal).
+                                    Replace("]", ")", StringComparison.Ordinal)
+            Dim FirstTupleIndex As Integer = TypeString.IndexOf("(Of (", StringComparison.Ordinal)
             If FirstTupleIndex < 0 Then
                 Return VBFactory.ParseName(TypeString)
             End If
@@ -42,7 +41,7 @@ Namespace CSharpToVBCodeConverter.Util
                         OpenParenCount -= 1
                         If OpenParenCount = 0 Then
                             Dim TupleString As String = TypeString.Substring(OpenIndex, (CloseIndex - OpenIndex) + 1)
-                            Result &= ExtractConvertedTuple(TupleString)
+                            Result &= CSharpConverter.ExtractConvertedTuple(TupleString)
                             If CloseIndex < TypeString.Length - 2 Then
                                 Stop
                             Else
@@ -55,20 +54,6 @@ Namespace CSharpToVBCodeConverter.Util
             End While
             Result = $"{Result})"
             Return VBFactory.ParseName(Result)
-        End Function
-
-        Private Function ExtractConvertedTuple(TupleString As String) As String
-            Dim TupleElements As New List(Of String)
-            For Each t As String In TupleString.Substring(1, TupleString.Length - 2).Split(","c)
-                Dim TuplePart() As String = t.Trim.Split(" "c)
-                If TuplePart.Length = 1 Then
-                    TupleElements.Add(ConvertToType(TuplePart(0).ToString(Globalization.CultureInfo.InvariantCulture)).ToString)
-                Else
-                    Dim Identifier As SyntaxToken = CSharp.SyntaxFactory.Identifier(TuplePart(1))
-                    TupleElements.Add($"{GenerateSafeVBToken(Identifier, IsQualifiedName:=False, IsTypeName:=False).ValueText} As {ConvertToType(TuplePart(0).ToString(Globalization.CultureInfo.InvariantCulture))}")
-                End If
-            Next
-            Return $"({String.Join(", ", TupleElements)})"
         End Function
 
         Private Function GetAbstractClassesToImplement(abstractClasses As IEnumerable(Of INamedTypeSymbol)) As ImmutableArray(Of INamedTypeSymbol)
@@ -98,7 +83,7 @@ Namespace CSharpToVBCodeConverter.Util
             End If
 
             Dim typesToImplement As ImmutableArray(Of INamedTypeSymbol) = GetTypesToImplement(classOrStructType, interfacesOrAbstractClasses, allowReimplementation, CancelToken)
-            Return typesToImplement.SelectAsArray(Function(s As INamedTypeSymbol) (s, members:=GetImplementedMembers(classOrStructType, s, isImplemented, isValidImplementation, interfaceMemberGetter, CancelToken))).WhereAsArray(Function(t As (s As Microsoft.CodeAnalysis.INamedTypeSymbol, members As System.Collections.Immutable.ImmutableArray(Of Microsoft.CodeAnalysis.ISymbol))) t.members.Length > 0)
+            Return typesToImplement.SelectAsArray(Function(s As INamedTypeSymbol) (s, members:=GetImplementedMembers(classOrStructType, s, isImplemented, isValidImplementation, interfaceMemberGetter, CancelToken))).WhereAsArray(Function(t As (s As INamedTypeSymbol, members As ImmutableArray(Of ISymbol))) t.members.Length > 0)
         End Function
 
         <Extension>
@@ -125,7 +110,7 @@ Namespace CSharpToVBCodeConverter.Util
             End If
 
             Dim typesToImplement As ImmutableArray(Of INamedTypeSymbol) = GetTypesToImplement(classOrStructType, interfacesOrAbstractClasses, allowReimplementation, CancelToken)
-            Return typesToImplement.SelectAsArray(Function(s As INamedTypeSymbol) (s, members:=GetUnimplementedMembers(classOrStructType, s, isImplemented, isValidImplementation, interfaceMemberGetter, CancelToken))).WhereAsArray(Function(t As (s As Microsoft.CodeAnalysis.INamedTypeSymbol, members As System.Collections.Immutable.ImmutableArray(Of Microsoft.CodeAnalysis.ISymbol))) t.members.Length > 0)
+            Return typesToImplement.SelectAsArray(Function(s As INamedTypeSymbol) (s, members:=GetUnimplementedMembers(classOrStructType, s, isImplemented, isValidImplementation, interfaceMemberGetter, CancelToken))).WhereAsArray(Function(t As (s As INamedTypeSymbol, members As ImmutableArray(Of ISymbol))) t.members.Length > 0)
         End Function
 
         Private Function GetImplementedMembers(classOrStructType As INamedTypeSymbol, interfaceType As INamedTypeSymbol, isImplemented As Func(Of INamedTypeSymbol, ISymbol, Func(Of INamedTypeSymbol, ISymbol, Boolean), CancellationToken, Boolean), isValidImplementation As Func(Of INamedTypeSymbol, ISymbol, Boolean), interfaceMemberGetter As Func(Of INamedTypeSymbol, ISymbol, ImmutableArray(Of ISymbol)), CancelToken As CancellationToken) As ImmutableArray(Of ISymbol)
@@ -176,18 +161,18 @@ Namespace CSharpToVBCodeConverter.Util
             Return classOrStructType.FindImplementationForInterfaceMember(member) IsNot Nothing
         End Function
 
-        Private Function ImplementsMethodOrProperty(Of T As ISymbol)(cS_MethodOrProperty As T, interfaceMethodOrProperty As T, ByRef SimpleName As SimpleNameSyntax) As Boolean
-            If cS_MethodOrProperty.Name <> interfaceMethodOrProperty.Name Then
+        Private Function ImplementsMethodOrProperty(Of T As ISymbol)(csMethodOrProperty As T, interfaceMethodOrProperty As T, ByRef SimpleName As VBS.SimpleNameSyntax) As Boolean
+            If csMethodOrProperty.Name <> interfaceMethodOrProperty.Name Then
                 Return False
             End If
-            If TypeOf cS_MethodOrProperty Is IMethodSymbol Then
-                Dim CS_Method As IMethodSymbol = CType(cS_MethodOrProperty, IMethodSymbol)
+            If TypeOf csMethodOrProperty Is IMethodSymbol Then
+                Dim csMethod As IMethodSymbol = CType(csMethodOrProperty, IMethodSymbol)
                 Dim interfaceMethod As IMethodSymbol = CType(interfaceMethodOrProperty, IMethodSymbol)
-                If CS_Method.Parameters.Length <> interfaceMethod.Parameters.Length Then
+                If csMethod.Parameters.Length <> interfaceMethod.Parameters.Length Then
                     Return False
                 End If
-                For i As Integer = 0 To CS_Method.Parameters.Length - 1
-                    If CS_Method.Parameters(i).[Type].Name <> interfaceMethod.Parameters(i).[Type].Name Then
+                For Each e As IndexClass(Of IParameterSymbol) In csMethod.Parameters.WithIndex
+                    If e.Value.[Type].Name <> interfaceMethod.Parameters(e.Index).[Type].Name Then
                         Return False
                     End If
                 Next
@@ -319,18 +304,18 @@ Namespace CSharpToVBCodeConverter.Util
         End Function
 
         <Extension>
-        Friend Function GetImplementsClauseForMethod(ListOfRequiredInterfaces As ImmutableArray(Of (InterfaceName As INamedTypeSymbol, MethodList As ImmutableArray(Of ISymbol))), CS_Method As IMethodSymbol) As ImplementsClauseSyntax
+        Friend Function GetImplementsClauseForMethod(ListOfRequiredInterfaces As ImmutableArray(Of (InterfaceName As INamedTypeSymbol, MethodList As ImmutableArray(Of ISymbol))), csMethod As IMethodSymbol) As VBS.ImplementsClauseSyntax
             If Not ListOfRequiredInterfaces.Any Then
                 Return Nothing
             End If
-            Dim SeparatedList As New List(Of QualifiedNameSyntax)
+            Dim SeparatedList As New List(Of VBS.QualifiedNameSyntax)
             For Each entry As (InterfaceName As INamedTypeSymbol, MethodList As ImmutableArray(Of ISymbol)) In ListOfRequiredInterfaces
-                Dim InterfaceName As NameSyntax = VBFactory.IdentifierName(entry.InterfaceName.ToString)
+                Dim InterfaceName As VBS.NameSyntax = VBFactory.IdentifierName(entry.InterfaceName.ToString)
                 For Each InterfaceMethod As ISymbol In entry.MethodList
-                    Dim _Right As SimpleNameSyntax = Nothing
+                    Dim _Right As VBS.SimpleNameSyntax = Nothing
                     If TypeOf InterfaceMethod Is IMethodSymbol Then
-                        If ImplementsMethodOrProperty(CS_Method, CType(InterfaceMethod, IMethodSymbol), _Right) Then
-                            Dim QualifiedName As QualifiedNameSyntax = CType(ConvertISymbolToNameSyntaxInterfaceName(InterfaceMethod), QualifiedNameSyntax)
+                        If ImplementsMethodOrProperty(csMethod, CType(InterfaceMethod, IMethodSymbol), _Right) Then
+                            Dim QualifiedName As VBS.QualifiedNameSyntax = CType(ConvertISymbolToNameSyntaxInterfaceName(InterfaceMethod), VBS.QualifiedNameSyntax)
                             SeparatedList.Add(VBFactory.QualifiedName(QualifiedName, _Right))
                             Exit For
                         End If
@@ -344,18 +329,18 @@ Namespace CSharpToVBCodeConverter.Util
         End Function
 
         <Extension>
-        Friend Function GetImplementsClauseForProperty(ListOfRequiredInterfaces As ImmutableArray(Of (InterfaceName As INamedTypeSymbol, MethodList As ImmutableArray(Of ISymbol))), CS_Property As IPropertySymbol) As ImplementsClauseSyntax
+        Friend Function GetImplementsClauseForProperty(ListOfRequiredInterfaces As ImmutableArray(Of (InterfaceName As INamedTypeSymbol, MethodList As ImmutableArray(Of ISymbol))), csProperty As IPropertySymbol) As VBS.ImplementsClauseSyntax
             If Not ListOfRequiredInterfaces.Any Then
                 Return Nothing
             End If
-            Dim SeparatedList As New List(Of QualifiedNameSyntax)
+            Dim SeparatedList As New List(Of VBS.QualifiedNameSyntax)
             For Each entry As (InterfaceName As INamedTypeSymbol, MethodList As ImmutableArray(Of ISymbol)) In ListOfRequiredInterfaces
-                Dim InterfaceName As NameSyntax = VBFactory.IdentifierName(entry.InterfaceName.ToString)
+                Dim InterfaceName As VBS.NameSyntax = VBFactory.IdentifierName(entry.InterfaceName.ToString)
                 For Each InterfaceProperty As ISymbol In entry.MethodList
-                    Dim _Right As SimpleNameSyntax = Nothing
+                    Dim _Right As VBS.SimpleNameSyntax = Nothing
                     If TypeOf InterfaceProperty Is IPropertySymbol Then
-                        If ImplementsMethodOrProperty(CS_Property, CType(InterfaceProperty, IPropertySymbol), _Right) Then
-                            Dim QualifiedName As QualifiedNameSyntax = CType(ConvertISymbolToNameSyntaxInterfaceName(InterfaceProperty), QualifiedNameSyntax)
+                        If ImplementsMethodOrProperty(csProperty, CType(InterfaceProperty, IPropertySymbol), _Right) Then
+                            Dim QualifiedName As VBS.QualifiedNameSyntax = CType(ConvertISymbolToNameSyntaxInterfaceName(InterfaceProperty), VBS.QualifiedNameSyntax)
                             SeparatedList.Add(VBFactory.QualifiedName(QualifiedName, _Right))
                             Exit For
                         End If
@@ -384,61 +369,6 @@ Namespace CSharpToVBCodeConverter.Util
 
             Return Nothing
         End Function
-
-        '<Extension>
-        'Public Function GetAllUnimplementedExplicitMembers(classOrStructType As INamedTypeSymbol,
-        '                                               interfaces As IEnumerable(Of INamedTypeSymbol),
-        '                                               CancelToken As CancellationToken) As ImmutableArray(Of (type As INamedTypeSymbol, members As ImmutableArray(Of ISymbol)))
-        '    Return classOrStructType.GetAllUnimplementedMembers(
-        '                    interfaces,
-        '                    AddressOf IsExplicitlyImplemented,
-        '                    AddressOf ImplementationExists,
-        '                    Function(type As INamedTypeSymbol, within As ISymbol)
-        '                        If type.TypeKind = TypeKind.Interface Then
-        '                            Return type.GetMembers().WhereAsArray(Function(m) m.Kind <> SymbolKind.NamedType AndAlso
-        '                                                                        IsImplementable(m) AndAlso
-        '                                                                        m.IsAccessibleWithin(within) AndAlso
-        '                                                                        Not IsPropertyWithInaccessibleImplementableAccessor(m, within))
-        '                        End If
-        '                        Return type.GetMembers()
-        '                    End Function,
-        '                    allowReimplementation:=False,
-        '                    CancelToken)
-
-        'End Function
-        '<Extension>
-        'Public Function GetAllUnimplementedMembersInThis(classOrStructType As INamedTypeSymbol,
-        '                                             interfacesOrAbstractClasses As IEnumerable(Of INamedTypeSymbol),
-        '                                             CancelToken As CancellationToken) As ImmutableArray(Of (type As INamedTypeSymbol, members As ImmutableArray(Of ISymbol)))
-        '    Return classOrStructType.GetAllUnimplementedMembers(
-        '    interfacesOrAbstractClasses,
-        '    AddressOf IsImplemented,
-        '    Function(t, m)
-        '        Dim implementation As ISymbol = classOrStructType.FindImplementationForInterfaceMember(m)
-        '        Return implementation IsNot Nothing AndAlso
-        '               Equals(implementation.ContainingType, classOrStructType)
-        '    End Function,
-        '    AddressOf GetMembers,
-        '    allowReimplementation:=True,
-        '    CancelToken)
-        'End Function
-
-        '<Extension>
-        'Public Function GetAllUnimplementedMembersInThis(classOrStructType As INamedTypeSymbol,
-        '                                             interfacesOrAbstractClasses As IEnumerable(Of INamedTypeSymbol),
-        '                                             interfaceMemberGetter As Func(Of INamedTypeSymbol, ISymbol, ImmutableArray(Of ISymbol)),
-        '                                             CancelToken As CancellationToken) As ImmutableArray(Of (type As INamedTypeSymbol, members As ImmutableArray(Of ISymbol)))
-        '    Return classOrStructType.GetAllUnimplementedMembers(
-        '    interfacesOrAbstractClasses,
-        '    AddressOf IsImplemented,
-        '    Function(t, m)
-        '        Dim implementation As ISymbol = classOrStructType.FindImplementationForInterfaceMember(m)
-        '        Return implementation IsNot Nothing AndAlso Equals(implementation.ContainingType, classOrStructType)
-        '    End Function,
-        '    interfaceMemberGetter,
-        '    allowReimplementation:=True,
-        '    CancelToken)
-        'End Function
 
         <Extension>
         Public Iterator Function GetBaseTypesAndThis(namedType As INamedTypeSymbol) As IEnumerable(Of INamedTypeSymbol)
