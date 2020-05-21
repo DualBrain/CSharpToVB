@@ -67,6 +67,8 @@ Partial Public Class Form1
 
     Private Shared Function ConvertFramework(Framework As String) As String
         Select Case Framework
+            Case "netcoreapp5.0"
+                Return "NET5_0"
             Case "netcoreapp3.0"
                 Return "NETCOREAPP3_0"
             Case "netcoreapp3.1"
@@ -84,7 +86,7 @@ Partial Public Class Form1
             Case "net472"
                 Return "NET472"
             Case Else
-                Return Framework.ToUpper(Globalization.CultureInfo.InvariantCulture).Replace(".", "_", StringComparison.OrdinalIgnoreCase)
+                Return Framework.ToUpperInvariant.Replace(".", "_", StringComparison.OrdinalIgnoreCase)
         End Select
     End Function
 
@@ -531,6 +533,10 @@ Partial Public Class Form1
         CurrentBuffer = CType(sender, Control)
     End Sub
 
+    Private Sub ListBoxErrorList_SelectedValueChanged(sender As Object, e As EventArgs) Handles ListBoxErrorList.SelectedValueChanged
+        ListBoxErrorList.Enabled = ListBoxErrorList.Items.Count > 0
+    End Sub
+
     Private Sub ListBoxFileList_DoubleClick(sender As Object, e As EventArgs) Handles ListBoxFileList.DoubleClick
         Dim FileList As ListBox = CType(sender, ListBox)
         If FileList.Items.Count = 0 Then
@@ -557,6 +563,10 @@ Partial Public Class Form1
 
     Private Sub ListBoxFileList_MouseEnter(sender As Object, e As EventArgs) Handles ListBoxFileList.MouseEnter
         CurrentBuffer = CType(sender, Control)
+    End Sub
+
+    Private Sub ListBoxFileList_SelectedValueChanged(sender As Object, e As EventArgs) Handles ListBoxFileList.SelectedValueChanged
+        ListBoxFileList.Enabled = ListBoxFileList.Items.Count > 0
     End Sub
 
     Private Function LoadInputBufferFromStream(SourceFileNameWithPath As String) As Integer
@@ -1384,7 +1394,7 @@ Partial Public Class Form1
                     totalProjects:=1, _cancellationTokenSource:=_cancellationTokenSource).ConfigureAwait(True)
 
                 If prompt.Length = 0 Then
-                    prompt = $"{If(_cancellationTokenSource.Token.IsCancellationRequested, "Conversion canceled", "Conversion completed")}, {FilesConversionProgress.Text.ToLower(Globalization.CultureInfo.CurrentCulture)} completed successfully."
+                    prompt = $"{If(_cancellationTokenSource.Token.IsCancellationRequested, "Conversion canceled", "Conversion completed")}, {FilesConversionProgress.Text.ToLowerInvariant} completed successfully."
                 End If
                 MsgBox(prompt,
                        MsgBoxStyle.OkOnly Or If(prompt.Contains("terminated", StringComparison.OrdinalIgnoreCase), MsgBoxStyle.Critical, MsgBoxStyle.Information) Or MsgBoxStyle.MsgBoxSetForeground,

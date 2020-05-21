@@ -27,7 +27,7 @@ description: "C# to VB Converter"
 - Code Converter
 
 ## Updated
-- 05/15/2020
+- 05/19/2020
 
 ## Description
 This application will convert C# to VB while trying to preserve comments, formatting and as many Directives
@@ -62,6 +62,21 @@ It will try to create a VB project File from the original C# project file.
 
 https://dotnetfeed.blob.core.windows.net/dotnet-core/index.json is added to NuGet Package Source to find
 Microsoft.Dotnet.XUnitExtensions which provides ConditionalFact and PlatformSpecific attributes used for testing.
+  New in 4.4.2.5
+  - Update Form1.Designer.VB with changes from new WinForms designer
+
+  New in 4.4.2.4
+  - Improved File Processed and File Error ListBoxes to only enable when there is something in them
+
+  New in 4.4.2.3/Converter 3.4.2.8
+  - Add TODO Check to converted local functions as comment
+  - Add TODO around Inherits with directive conditional parameters
+  - Fixed Interface translation
+  - Fix Clear Highlighted Text algorithm to put cursor in correct place
+  - Fix search history list management
+  - Fix Tuple Assignment
+  - Improve comment handling for Switch statement
+  - Remove unused code
 
   New in 4.4.2.2/Converter 3.4.2.6
   - Improvement in exception messages 
@@ -195,14 +210,14 @@ New in Release 4.2.4.0
 +------------------+--------+--------+--------+
 | Module           | Line   | Branch | Method |
 +------------------+--------+--------+--------+
-| VB.CodeConverter | 79.68% | 73.21% | 87.78% |
+| VB.CodeConverter | 79.16% | 72.86% | 87.45% |
 +------------------+--------+--------+--------+
 
 +---------+--------+--------+--------+
 |         | Line   | Branch | Method |
 +---------+--------+--------+--------+
-| Total   | 79.68% | 73.21% | 87.78% |
+| Total   | 79.16% | 72.86% | 87.45% |
 +---------+--------+--------+--------+
-| Average | 79.68% | 73.2%  | 87.78% |
+| Average | 79.16% | 72.86% | 87.45% |
 +---------+--------+--------+--------+
 ```
