@@ -5,15 +5,16 @@
 Imports System.Collections.Immutable
 Imports System.ComponentModel
 Imports System.Runtime.CompilerServices
-
+Imports CSharpToVBConverter
 Imports Microsoft.CodeAnalysis
 
-Namespace CSharpToVBCodeConverter.Util
+Namespace CSharpToVBConverter
 
     <EditorBrowsable(EditorBrowsableState.Never)>
-    Partial Public Module ITypeSymbolExtensions
+    Public Module ITypeSymbolExtensions
 
         ' Is the type "withinType" nested within the original type "originalContainingType".
+        <Extension>
         Private Function IsNestedWithinOriginalContainingType(withinType As INamedTypeSymbol, originalContainingType As INamedTypeSymbol) As Boolean
             ' Walk up my parent chain and see if I eventually hit the owner.  If so then I'm a
             ' nested type of that owner and I'm allowed access to everything inside of it.
@@ -39,7 +40,7 @@ Namespace CSharpToVBCodeConverter.Util
 
             ' A private symbol is accessible if we're (optionally nested) inside the type that it
             ' was defined in.
-            Return IsNestedWithinOriginalContainingType(withinType, originalContainingType)
+            Return withinType.IsNestedWithinOriginalContainingType(originalContainingType)
         End Function
 
         ' Is a protected symbol inside "originalContainingType" accessible from within "within",
@@ -64,12 +65,12 @@ Namespace CSharpToVBCodeConverter.Util
 
             ' NOTE: It is helpful to consider 'protected' as *increasing* the
             ' accessibility domain of a private member, rather than *decreasing* that of a public
-            ' member. Members are naturally private; the protected, internal and public access
+            ' member. members are naturally private; the protected, internal and public access
             ' modifiers all increase the accessibility domain. Since private members are accessible
             ' to nested types, so are protected members.
 
             ' NOTE(cyrusn): We do this check up front as it is very fast and easy to do.
-            If IsNestedWithinOriginalContainingType(withinType, originalContainingType) Then
+            If withinType.IsNestedWithinOriginalContainingType(originalContainingType) Then
                 Return True
             End If
 
@@ -103,19 +104,14 @@ Namespace CSharpToVBCodeConverter.Util
         End Function
 
         <Extension>
-        Friend Function ActionType(compilation As Compilation) As INamedTypeSymbol
-            Return compilation.GetTypeByMetadataName(GetType(Action).FullName)
-        End Function
-
-        <Extension>
         Friend Function GetAllInterfacesIncludingThis(type As ITypeSymbol) As IList(Of INamedTypeSymbol)
             Dim allInterfaces As ImmutableArray(Of INamedTypeSymbol) = type.AllInterfaces
-            Dim tempVar As Boolean = TypeOf type Is INamedTypeSymbol
-            Dim namedType As INamedTypeSymbol = If(tempVar, CType(type, INamedTypeSymbol), Nothing)
-            If tempVar AndAlso namedType.TypeKind = TypeKind.Interface AndAlso Not allInterfaces.Contains(namedType) Then
+            Dim isINamedType As Boolean = TypeOf type Is INamedTypeSymbol
+            Dim namedType As INamedTypeSymbol = If(isINamedType, CType(type, INamedTypeSymbol), Nothing)
+            If isINamedType AndAlso namedType.TypeKind = Microsoft.CodeAnalysis.TypeKind.Interface AndAlso Not allInterfaces.Contains(namedType) Then
                 Dim result As New List(Of INamedTypeSymbol)(allInterfaces.Length + 1) From {
-                    namedType
-                }
+                namedType
+            }
                 result.AddRange(allInterfaces)
                 Return result
             End If
@@ -131,9 +127,31 @@ Namespace CSharpToVBCodeConverter.Util
             Return type.GetBaseTypesAndThis.Contains(Function(t As ITypeSymbol) SymbolEquivalenceComparer.s_instance.Equals(t.OriginalDefinition, originalBaseType))
         End Function
 
-        <Extension()>
+        <Extension>
+        Friend Function IsAbstractClass(symbol As ITypeSymbol) As Boolean
+            Return CBool(symbol?.TypeKind = Microsoft.CodeAnalysis.TypeKind.Class AndAlso symbol.IsAbstract)
+        End Function
+
+        <Extension>
+        Friend Function IsDelegateType(symbol As ITypeSymbol) As Boolean
+            If symbol Is Nothing Then
+                Return False
+            End If
+            Return symbol.TypeKind = TypeKind.Delegate
+        End Function
+
+        <Extension>
         Friend Function IsErrorType(symbol As ITypeSymbol) As Boolean
-            Return symbol.TypeKind = TypeKind.[Error]
+            Return CBool(symbol?.TypeKind = TypeKind.Error)
+        End Function
+
+        <Extension>
+        Friend Function IsInterfaceType(symbol As ITypeSymbol) As Boolean
+            If symbol Is Nothing Then
+                Return False
+            End If
+
+            Return symbol.TypeKind = TypeKind.Interface
         End Function
 
         ' Is a member with declared accessibility "declaredAccessiblity" accessible from within
@@ -143,7 +161,7 @@ Namespace CSharpToVBCodeConverter.Util
 
             Dim originalContainingType As INamedTypeSymbol = containingType.OriginalDefinition
             Dim withinNamedType As INamedTypeSymbol = TryCast(within, INamedTypeSymbol)
-            Dim withinAssembly As IAssemblySymbol = If((TryCast(within, IAssemblySymbol)), DirectCast(within, INamedTypeSymbol).ContainingAssembly)
+            Dim withinAssembly As IAssemblySymbol = If(TryCast(within, IAssemblySymbol), DirectCast(within, INamedTypeSymbol).ContainingAssembly)
 
             ' A nested symbol is only accessible to us if its container is accessible as well.
             If Not IsNamedTypeAccessible(containingType, within) Then
@@ -151,18 +169,18 @@ Namespace CSharpToVBCodeConverter.Util
             End If
 
             Select Case declaredAccessibility
-                Case Microsoft.CodeAnalysis.Accessibility.NotApplicable
+                Case Accessibility.NotApplicable
                     ' TODO(cyrusn): Is this the right thing to do here?  Should the caller ever be
                     ' asking about the accessibility of a symbol that has "NotApplicable" as its
                     ' value?  For now, I'm preserving the behavior of the existing code.  But perhaps
                     ' we should fail here and require the caller to not do this?
                     Return True
 
-                Case Microsoft.CodeAnalysis.Accessibility.Public
+                Case Accessibility.Public
                     ' Public symbols are always accessible from any context
                     Return True
 
-                Case Microsoft.CodeAnalysis.Accessibility.Private
+                Case Accessibility.Private
                     ' All expressions in the current submission (top-level or nested in a method or
                     ' type) can access previous submission's private top-level members. Previous
                     ' submissions are treated like outer classes for the current submission - the
@@ -174,12 +192,12 @@ Namespace CSharpToVBCodeConverter.Util
                     ' private members never accessible from outside a type.
                     Return withinNamedType IsNot Nothing AndAlso IsPrivateSymbolAccessible(withinNamedType, originalContainingType)
 
-                Case Microsoft.CodeAnalysis.Accessibility.Internal
+                Case Accessibility.Internal
                     ' An internal type is accessible if we're in the same assembly or we have
                     ' friend access to the assembly it was defined in.
                     Return withinAssembly.IsSameAssemblyOrHasFriendAccessTo(containingType.ContainingAssembly)
 
-                Case Microsoft.CodeAnalysis.Accessibility.ProtectedAndInternal
+                Case Accessibility.ProtectedAndInternal
                     If Not withinAssembly.IsSameAssemblyOrHasFriendAccessTo(containingType.ContainingAssembly) Then
                         ' We require internal access.  If we don't have it, then this symbol is
                         ' definitely not accessible to us.
@@ -189,7 +207,7 @@ Namespace CSharpToVBCodeConverter.Util
                     ' We had internal access.  Also have to make sure we have protected access.
                     Return IsProtectedSymbolAccessible(withinNamedType, withinAssembly, throughTypeOpt, originalContainingType, failedThroughTypeCheck)
 
-                Case Microsoft.CodeAnalysis.Accessibility.ProtectedOrInternal
+                Case Accessibility.ProtectedOrInternal
                     If withinAssembly.IsSameAssemblyOrHasFriendAccessTo(containingType.ContainingAssembly) Then
                         ' If we have internal access to this symbol, then that's sufficient.  no
                         ' need to do the complicated protected case.
@@ -200,12 +218,11 @@ Namespace CSharpToVBCodeConverter.Util
                     ' sufficient.
                     Return IsProtectedSymbolAccessible(withinNamedType, withinAssembly, throughTypeOpt, originalContainingType, failedThroughTypeCheck)
 
-                Case Microsoft.CodeAnalysis.Accessibility.Protected
+                Case Accessibility.Protected
                     Return IsProtectedSymbolAccessible(withinNamedType, withinAssembly, throughTypeOpt, originalContainingType, failedThroughTypeCheck)
-
                 Case Else
-                    Throw UnreachableException()
-
+                    Stop
+                    Throw UnreachableException
             End Select
         End Function
 
@@ -214,35 +231,13 @@ Namespace CSharpToVBCodeConverter.Util
             Return SymbolEqualityComparer.Default.Equals(assembly, toAssembly) OrElse (assembly.IsInteractive AndAlso toAssembly.IsInteractive) OrElse toAssembly.GivesAccessTo(assembly)
         End Function
 
-        <Extension()>
+        <Extension>
         Public Iterator Function GetBaseTypesAndThis(type As ITypeSymbol) As IEnumerable(Of ITypeSymbol)
             Dim current As ITypeSymbol = type
             While current IsNot Nothing
                 Yield current
                 current = current.BaseType
             End While
-        End Function
-
-        <Extension>
-        Public Function IsAbstractClass(symbol As ITypeSymbol) As Boolean
-            Return CBool(symbol?.TypeKind = TypeKind.Class AndAlso symbol.IsAbstract)
-        End Function
-
-        <Extension()>
-        Public Function IsDelegateType(symbol As ITypeSymbol) As Boolean
-            If symbol Is Nothing Then
-                Return False
-            End If
-            Return symbol.TypeKind = TypeKind.[Delegate]
-        End Function
-
-        <Extension()>
-        Public Function IsInterfaceType(symbol As ITypeSymbol) As Boolean
-            If symbol Is Nothing Then
-                Return False
-            End If
-
-            Return symbol.TypeKind = TypeKind.[Interface]
         End Function
 
     End Module

@@ -19,9 +19,9 @@ Namespace CodeConverter.Tests
 
         Protected Overrides Sub ApplyDocumentTextChanged(id As DocumentId, text As SourceText)
             MyBase.ApplyDocumentTextChanged(id, text)
-            Dim document As Document = CurrentSolution.GetDocument(id)
+            Dim document As Document = Me.CurrentSolution.GetDocument(id)
             If document IsNot Nothing Then
-                OnDocumentTextChanged(id, text, PreservationMode.PreserveValue)
+                Me.OnDocumentTextChanged(id, text, PreservationMode.PreserveValue)
             End If
         End Sub
 
@@ -30,12 +30,12 @@ Namespace CodeConverter.Tests
         End Function
 
         Public Sub ChangeDocument(id As DocumentId, text As SourceText)
-            ApplyDocumentTextChanged(id, text)
+            Me.ApplyDocumentTextChanged(id, text)
         End Sub
 
         Public Sub Open(projectInfo As ProjectInfo)
             Dim sInfo As SolutionInfo = SolutionInfo.Create(SolutionId.CreateNewId(), VersionStamp.Create(), Nothing, {projectInfo})
-            OnSolutionAdded(sInfo)
+            Me.OnSolutionAdded(sInfo)
         End Sub
 
     End Class

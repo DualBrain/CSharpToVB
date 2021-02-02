@@ -3,6 +3,7 @@
 ' See the LICENSE file in the project root for more information.
 
 Imports CSharpToVBApp
+Imports CSharpToVBConverter
 
 Imports Xunit
 
@@ -18,10 +19,9 @@ Namespace DictionaryLoadSave.Tests
 
         <Fact>
         Public Shared Sub VBTestRenoveNewLine()
-            Dim OriginalString As String = "This is a 2 Line
+            Dim originalString As String = "This is a 2 Line
 String"
-            Dim ResultlString As String = "This is a 2 LineString"
-            Assert.Equal(OriginalString.WithoutNewLines, ResultlString)
+            Assert.Equal(originalString.WithoutNewLines, "This is a 2 LineString")
         End Sub
 
     End Class

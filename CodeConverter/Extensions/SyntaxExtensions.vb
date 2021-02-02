@@ -7,15 +7,19 @@ Imports System.Runtime.CompilerServices
 Imports Microsoft.CodeAnalysis
 
 Imports CS = Microsoft.CodeAnalysis.CSharp
-Imports VBS = Microsoft.CodeAnalysis.VisualBasic.Syntax
 
-Namespace CSharpToVBCodeConverter.Util
+Namespace CSharpToVBConverter
 
     Public Module SyntaxExtensions
 
-        <Extension()>
-        Public Function IsParentKind(node As SyntaxNode, kind As CS.SyntaxKind) As Boolean
+        <Extension>
+        Friend Function IsParentKind(node As SyntaxNode, kind As CS.SyntaxKind) As Boolean
             Return node IsNot Nothing AndAlso node.Parent.IsKind(kind)
+        End Function
+
+        <Extension>
+        Friend Function StartsWithSystemDot(Expression As SyntaxNode) As Boolean
+            Return Expression.ToString.StartsWith("System.", StringComparison.Ordinal)
         End Function
 
         ''' <summary>
@@ -28,15 +32,15 @@ Namespace CSharpToVBCodeConverter.Util
         ''' <param name="elasticTrivia"></param>
         ''' <param name="PreserveCRLF"></param>
         ''' <returns></returns>
-        <Extension()>
+        <Extension>
         Public Function NormalizeWhitespaceEx(Of TNode As SyntaxNode)(node As TNode,
-                                                                      useDefaultCasing As Boolean,
-                                                                      Optional indentation As String = "    ",
-                                                                      Optional eol As String = vbCrLf,
-                                                                      Optional PreserveCRLF As Boolean = False
-                                                                      ) As TNode
+                                                                  useDefaultCasing As Boolean,
+                                                                  Optional indentation As String = "    ",
+                                                                  Optional eol As String = vbCrLf,
+                                                                  Optional PreserveCRLF As Boolean = False
+                                                                  ) As TNode
             Contracts.Contract.Requires(node IsNot Nothing)
-            Return DirectCast(VBS.SyntaxNormalizer.Normalize(node, indentation, eol, useElasticTrivia:=False, useDefaultCasing, PreserveCRLF), TNode)
+            Return DirectCast(SyntaxNormalizer.Normalize(node, indentation, eol, useElasticTrivia:=False, useDefaultCasing, PreserveCRLF), TNode)
         End Function
 
     End Module

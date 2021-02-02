@@ -1,6 +1,7 @@
 ﻿' Licensed to the .NET Foundation under one or more agreements.
 ' The .NET Foundation licenses this file to you under the MIT license.
 ' See the LICENSE file in the project root for more information.
+
 Imports System.Collections.Immutable
 Imports System.Runtime.InteropServices
 Imports System.Text
@@ -149,46 +150,43 @@ Namespace Roslyn.Test.Utilities
             ' Append the remainder of the string.
             outputBuilder.Append(input.Substring(currentIndexInInput))
             output = outputBuilder.ToString()
-
-            Dim KeySelector As Func(Of KeyValuePair(Of String, List(Of TextSpan)), String) = Function(kvp As KeyValuePair(Of String, List(Of TextSpan)))
-                                                                                                 Return kvp.Key
-                                                                                             End Function
-            Dim ValueSelector As Func(Of KeyValuePair(Of String, List(Of TextSpan)), List(Of TextSpan)) = Function(kvp As KeyValuePair(Of String, List(Of TextSpan)))
-                                                                                                              Return kvp.Value
-                                                                                                          End Function
-            spans = tempSpans.ToDictionary(KeySelector, ValueSelector)
+            spans = tempSpans.ToDictionary(Function(kvp As KeyValuePair(Of String, List(Of TextSpan)))
+                                               Return kvp.Key
+                                           End Function,
+                                           Function(kvp As KeyValuePair(Of String, List(Of TextSpan)))
+                                               Return kvp.Value
+                                           End Function)
         End Sub
 
         Private Function SortMatches(matches As List(Of Tuple(Of Integer, String))) As List(Of Tuple(Of Integer, String))
-            Dim SortedMatches As New List(Of Tuple(Of Integer, String))
+            Dim sortedMatches As New List(Of Tuple(Of Integer, String))
             Select Case matches.Count
                 Case 0
                 Case 1
-                    SortedMatches.Add(matches(0))
+                    sortedMatches.Add(matches(0))
                 Case Else
 
             End Select
-            SortedMatches.Add(matches(0))
+            sortedMatches.Add(matches(0))
 
-            Dim Max As Integer = matches.Count - 1
-            For Loop1 As Integer = 1 To Max
-                For Loop2 As Integer = 0 To Max - Loop1
-                    If SortedMatches(Loop2).Item1 > SortedMatches(Loop2 + 1).Item1 Then
-                        Dim Tmp As Tuple(Of Integer, String)
-                        Tmp = SortedMatches(Loop2)
-                        SortedMatches(Loop2) = SortedMatches(Loop2 + 1)
-                        SortedMatches(Loop2 + 1) = Tmp
+            Dim max As Integer = matches.Count - 1
+            For loop1 As Integer = 1 To max
+                For loop2 As Integer = 0 To max - loop1
+                    If sortedMatches(loop2).Item1 > sortedMatches(loop2 + 1).Item1 Then
+                        Dim tmp As Tuple(Of Integer, String) = sortedMatches(loop2)
+                        sortedMatches(loop2) = sortedMatches(loop2 + 1)
+                        sortedMatches(loop2 + 1) = tmp
                     End If
-                Next Loop2
-            Next Loop1
-            Return SortedMatches
+                Next loop2
+            Next loop1
+            Return sortedMatches
         End Function
 
-        Private Function GetOrAdd(Of K, V)(dictionary_Renamed As IDictionary(Of K, V), key As K, [function] As Func(Of K, V)) As V
+        Private Function GetOrAdd(Of K, V)(Dictionary As IDictionary(Of K, V), key As K, [function] As Func(Of K, V)) As V
             Dim value As V = Nothing
-            If Not dictionary_Renamed.TryGetValue(key, value) Then
+            If Not Dictionary.TryGetValue(key, value) Then
                 value = [function](key)
-                dictionary_Renamed.Add(key, value)
+                Dictionary.Add(key, value)
             End If
 
             Return value
@@ -201,7 +199,7 @@ Namespace Roslyn.Test.Utilities
             Dim spanStartTuple As Tuple(Of Integer, String) = spanStartStack.Pop()
 
             Dim span As TextSpan = TextSpan.FromBounds(spanStartTuple.Item1, finalIndex)
-            GetOrAdd(spans, spanStartTuple.Item2, Function(underscore As String) New List(Of TextSpan)).Add(span)
+            GetOrAdd(spans, spanStartTuple.Item2, Function(__ As String) New List(Of TextSpan)).Add(span)
         End Sub
 
         Private Sub AddMatch(input As String, value As String, currentIndex As Integer, matches As List(Of Tuple(Of Integer, String)))
@@ -216,22 +214,23 @@ Namespace Roslyn.Test.Utilities
             Dim mDictionary As IDictionary(Of String, List(Of TextSpan)) = Nothing
             Parse(input, output, cursorPositionOpt, mDictionary)
 
-            Dim builder As List(Of TextSpan) = GetOrAdd(mDictionary, String.Empty, Function(underscore As String) New List(Of TextSpan))
+            Dim builder As List(Of TextSpan) = GetOrAdd(mDictionary, String.Empty, Function(__ As String) New List(Of TextSpan))
             spans = ImmutableArray.Create(builder.ToArray)
         End Sub
 
-        Public Sub GetPositionAndSpans(
-            input As String, <Out> ByRef output As String, <Out> ByRef cursorPositionOpt As Integer?, <Out> ByRef spans As IDictionary(Of String, ImmutableArray(Of TextSpan)))
+        Public Sub GetPositionAndSpans(input As String, <Out> ByRef output As String, <Out> ByRef cursorPositionOpt As Integer?, <Out> ByRef spans As IDictionary(Of String, ImmutableArray(Of TextSpan)))
+            If input Is Nothing Then
+                Throw New ArgumentNullException(NameOf(input))
+            End If
+
             Dim mDictionary As IDictionary(Of String, List(Of TextSpan)) = Nothing
             Parse(input, output, cursorPositionOpt, mDictionary)
-            Dim KeySelector As Func(Of KeyValuePair(Of String, List(Of TextSpan)), String) = Function(kvp As KeyValuePair(Of String, List(Of TextSpan)))
-                                                                                                 Return kvp.Key
-                                                                                             End Function
-            Dim ValueSelector As Func(Of KeyValuePair(Of String, List(Of TextSpan)), ImmutableArray(Of TextSpan)) = Function(kvp As KeyValuePair(Of String, List(Of TextSpan)))
-                                                                                                                        Return ImmutableArray.Create(kvp.Value.ToArray)
-                                                                                                                    End Function
-
-            spans = mDictionary.ToDictionary(KeySelector, ValueSelector)
+            spans = mDictionary.ToDictionary(Function(kvp As KeyValuePair(Of String, List(Of TextSpan)))
+                                                 Return kvp.Key
+                                             End Function,
+                                             Function(kvp As KeyValuePair(Of String, List(Of TextSpan)))
+                                                 Return ImmutableArray.Create(kvp.Value.ToArray)
+                                             End Function)
         End Sub
 
         Public Sub GetSpans(input As String, <Out> ByRef output As String, <Out> ByRef spans As IDictionary(Of String, ImmutableArray(Of TextSpan)))

@@ -4,9 +4,7 @@
 
 Imports Microsoft.Win32
 
-Imports VBMsgBox
-
-Module BrowserUtilities
+Friend Module BrowserUtilities
 
     Friend Sub launchBrowser(url As String)
         Using userChoiceKey As RegistryKey = Registry.CurrentUser.OpenSubKey("Software\Microsoft\Windows\Shell\Associations\UrlAssociations\http\UserChoice")
@@ -36,7 +34,7 @@ Module BrowserUtilities
                                    MsgBoxStyle.OkCancel Or MsgBoxStyle.Exclamation Or MsgBoxStyle.MsgBoxSetForeground)
             End If
             If msgResult = MsgBoxResult.Ok Then
-                Dim info As New ProcessStartInfo(System.Environment.ExpandEnvironmentVariables(browserPath), url)
+                Dim info As New ProcessStartInfo(Environment.ExpandEnvironmentVariables(browserPath), url)
                 Process.Start(info)
             End If
         End Using

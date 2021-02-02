@@ -5,9 +5,9 @@
 Imports System.Collections.Immutable
 Imports System.Reflection
 Imports System.Threading
-
-Imports CSharpToVBCodeConverter.DestVisualBasic
-Imports CSharpToVBCodeConverter.Util
+Imports ConvertDirectory.Tests
+Imports CSharpToVBConverter
+Imports CSharpToVBConverter.ToVisualBasic
 
 Imports Microsoft.CodeAnalysis
 Imports Microsoft.CodeAnalysis.CSharp
@@ -20,6 +20,12 @@ Imports Microsoft.CodeAnalysis.VisualBasic
 Namespace CodeConverter.Tests
 
     Public Class ConverterTestBase
+
+        Private Const OptionHeaderText As String = "Option Explicit Off
+Option Infer On
+Option Strict Off
+
+"
 
         ' Do not remove Version
         Public Property Version As Integer = 1
@@ -72,6 +78,35 @@ Namespace CodeConverter.Tests
             doc = workspace.CurrentSolution.GetProject(projectId).GetDocument(documentId)
         End Sub
 
+        Private Shared Function FindFirstDifferenceColumn(DesiredLine As String, ActualLine As String) As (ColumnIndex As Integer, Character As String)
+            Dim minLength As Integer = Math.Min(DesiredLine.Length, ActualLine.Length) - 1
+            For index As Integer = 0 To minLength
+                If Not DesiredLine.Chars(index).Equals(ActualLine.Chars(index)) Then
+                    Return (index + 1, $"Expected Character ""{DesiredLine.Chars(index)}"", Actual Character ""{ActualLine.Chars(index)}""")
+                End If
+            Next
+
+            If DesiredLine.Length > ActualLine.Length Then
+                Return (minLength + 1, $"Expected Character ""{DesiredLine.Chars(minLength + 1)}"", Actual Character Nothing")
+            Else
+                Return (minLength + 1, $"Expected Character Nothing, Actual Character ""{ActualLine.Chars(minLength + 1)}""")
+            End If
+        End Function
+
+        Private Shared Function FindFirstDifferenceLine(DesiredText As String, ActualText As String) As String
+            Dim desiredlines() As String = DesiredText.SplitLines()
+            Dim actuaLines() As String = ActualText.SplitLines()
+            For index As Integer = 0 To Math.Min(desiredlines.GetUpperBound(0), actuaLines.GetUpperBound(0))
+                Dim desiredLine As String = desiredlines(index)
+                Dim actualLine As String = actuaLines(index)
+                If Not desiredLine.Equals(actualLine, StringComparison.CurrentCulture) Then
+                    Dim p As (ColumnIndex As Integer, Character As String) = FindFirstDifferenceColumn(desiredLine, actualLine)
+                    Return $"{vbCrLf}Expected Line_{index + 1} {desiredLine}{vbCrLf}Actual Line___{index + 1} {actualLine}{vbCrLf}Column {p.ColumnIndex} {p.Character}"
+                End If
+            Next
+            Return "Files identical"
+        End Function
+
         Private Shared Sub VBWorkspaceSetup(ByRef workspace As TestWorkspace, ByRef doc As Document, Optional parseOptions As VisualBasicParseOptions = Nothing)
             workspace = New TestWorkspace()
             If parseOptions Is Nothing Then
@@ -87,32 +122,37 @@ Namespace CodeConverter.Tests
                 WithRootNamespace(rootNamespace:="TestProject").
                 WithGlobalImports(globalImports:=GlobalImport.Parse(NameOf(System), "System.Collections.Generic", "System.Linq", "Microsoft.VisualBasic"))
 
-            Dim ProjectId As ProjectId = ProjectId.CreateNewId()
-            Dim DocumentID As DocumentId = DocumentId.CreateNewId(projectId:=ProjectId)
+            Dim projectID As ProjectId = ProjectId.CreateNewId()
+            Dim documentID As DocumentId = DocumentId.CreateNewId(projectId:=projectID)
             workspace.Open(ProjectInfo.Create(
-                                            id:=ProjectId,
-                                            version:=VersionStamp.Create(),
+                                            projectID,
+                                            VersionStamp.Create(),
                                             name:="TestProject",
                                             assemblyName:="TestProject",
-                                            language:=LanguageNames.VisualBasic,
+                                            LanguageNames.VisualBasic,
                                             filePath:=Nothing,
                                             outputFilePath:=Nothing,
-                                            compilationOptions:=compilationOptions,
-                                            parseOptions:=parseOptions,
+                                            compilationOptions,
+                                            parseOptions,
                                             documents:={
                                                 DocumentInfo.Create(
-                                                    DocumentID,
+                                                    documentID,
                                                     "a.vb",
                                                     Nothing,
                                                     SourceCodeKind.Regular
                                                 )
                                             },
                                             projectReferences:=Nothing,
-                                            metadataReferences:=VisualBasicReferences(Assembly.Load("System.Windows.Forms").Location)))
-            doc = workspace.CurrentSolution.GetProject(ProjectId).GetDocument(DocumentID)
+                                            VisualBasicReferences(Assembly.Load("System.Windows.Forms").Location)))
+            doc = workspace.CurrentSolution.GetProject(projectID).GetDocument(documentID)
         End Sub
 
-        Friend Shared Sub TestConversionCSharpToVisualBasic(csharpCode As String, DesiredResult As String, Optional csharpOptions As CSharpParseOptions = Nothing, Optional vbOptions As VisualBasicParseOptions = Nothing)
+        Protected Shared Function WorkspaceFormat(workspace As Workspace, root As SyntaxNode, spans As IEnumerable(Of TextSpan), pOptionSet As OptionSet, pSourceText As SourceText) As String
+            Dim result As IList(Of TextChange) = Formatter.GetFormattedTextChanges(root, spans, workspace, pOptionSet)
+            Return pSourceText?.WithChanges(result).ToString()
+        End Function
+
+        Friend Shared Sub TestConversionCSharpToVisualBasic(csharpCode As String, DesiredResult As String, Optional csharpOptions As CSharpParseOptions = Nothing, Optional vbOptions As VisualBasicParseOptions = Nothing, Optional IncludeOptions As Boolean = True)
             Dim csharpWorkspace As TestWorkspace = Nothing
             Dim vbWorkspace As TestWorkspace = Nothing
             Dim inputDocument As Document = Nothing
@@ -121,88 +161,62 @@ Namespace CodeConverter.Tests
             CSharpWorkspaceSetup(text:=csharpCode, workspace:=csharpWorkspace, doc:=inputDocument, parseOptions:=csharpOptions)
             VBWorkspaceSetup(workspace:=vbWorkspace, doc:=outputDocument, parseOptions:=vbOptions)
 
-            Dim InputNode As SyntaxNode = inputDocument.GetSyntaxRootAsync().GetAwaiter().GetResult()
             Dim lSemanticModel As SemanticModel = inputDocument.GetSemanticModelAsync().GetAwaiter().GetResult()
-            Dim outputNode As SyntaxNode = CSharpConverter.Convert(CType(InputNode, CSharpSyntaxNode), SkipAutoGenerated:=True, New DefaultVBOptions, lSemanticModel, ReportException:=Nothing, Progress:=Nothing, CancellationToken.None)
+            Dim outputNode As SyntaxNode = CType(inputDocument.GetSyntaxRootAsync() _
+                                                              .GetAwaiter() _
+                                                              .GetResult(),
+                                                 CSharpSyntaxNode).DoConversion(lSemanticModel,
+                                                                                New DefaultVBOptions,
+                                                                                SkipAutoGenerated:=True,
+                                                                                ReportException:=Nothing,
+                                                                                Progress:=Nothing,
+                                                                                CancellationToken.None)
 
-            Dim ActualResult As String = outputDocument.WithSyntaxRoot(
+            Dim actualResult As String = outputDocument.WithSyntaxRoot(
                 root:=outputNode.NormalizeWhitespaceEx(useDefaultCasing:=True,
-                                                        PreserveCRLF:=True)
-                                                        ).GetTextAsync().GetAwaiter().GetResult().ToString()
+                                                       PreserveCRLF:=True)
+                                                      ).GetTextAsync().GetAwaiter().GetResult().ToString()
 
-            Using Workspace As AdhocWorkspace = New AdhocWorkspace()
-                Dim project As Project = Workspace.CurrentSolution.AddProject("Project", "Project.dll", LanguageNames.VisualBasic)
-                Dim PreprocessorSymbols As New List(Of KeyValuePair(Of String, Object)) From {
+            Using workspace As AdhocWorkspace = New AdhocWorkspace()
+                Dim project As Project = workspace.CurrentSolution.AddProject("Project", "Project.dll", LanguageNames.VisualBasic)
+                Dim preprocessorSymbols As New List(Of KeyValuePair(Of String, Object)) From {
                     New KeyValuePair(Of String, Object)("NETCOREAPP", True)
                 }
 
-                Dim ParseOptions As VisualBasicParseOptions = New VisualBasicParseOptions(
-                        VisualBasic.LanguageVersion.VisualBasic16,
-                        DocumentationMode.Diagnose,
-                        kind:=SourceCodeKind.Regular,
-                        PreprocessorSymbols)
 
-                project = project.WithParseOptions(ParseOptions)
+                project = project.WithParseOptions(New VisualBasicParseOptions(
+                                                        VisualBasic.LanguageVersion.VisualBasic16,
+                                                        DocumentationMode.Diagnose,
+                                                        kind:=SourceCodeKind.Regular,
+                                                        preprocessorSymbols)
+                                                   )
 
-                Dim _Document As Document = project.AddDocument("Document", ActualResult)
-                Dim _SyntaxTree As SyntaxTree = _Document.GetSyntaxTreeAsync().Result
-
-                Dim Options As OptionSet = Workspace.Options
-
-                Dim Root As SyntaxNode = _SyntaxTree.GetRootAsync().Result
+                Dim doc As Document = project.AddDocument("Document", actualResult)
+                Dim tree As SyntaxTree = doc.GetSyntaxTreeAsync().Result
                 Dim spans As IEnumerable(Of TextSpan) = Nothing
-                ActualResult = WorkspaceFormat(Workspace, Root, spans, Options, _Document.GetTextAsync().Result)
-
+                actualResult = WorkspaceFormat(workspace,
+                                               tree.GetRootAsync().Result,
+                                               spans,
+                                               workspace.Options,
+                                               doc.GetTextAsync().Result)
             End Using
 
-            ActualResult = HomogenizeEol(ActualResult).TrimEnd()
-            DesiredResult = HomogenizeEol(DesiredResult).TrimEnd()
-            Dim VBTestBase As New VisualBasicFormattingTestBase()
-            Call VBTestBase.AssertFormatSpanAsync(ActualResult, DesiredResult)
-            Dim ErrorMessage As String = FindFirstDifferenceLine(DesiredResult, ActualResult)
-            If ErrorMessage <> "Files identical" Then
-                Assert.AreEqual(DesiredResult, ActualResult, ErrorMessage)
+            If IncludeOptions Then
+                actualResult = actualResult.Replace(OptionHeaderText, "", StringComparison.OrdinalIgnoreCase)
             End If
-            VBTestBase.Dispose()
+
+            actualResult = HomogenizeEol(actualResult).TrimEnd()
+            DesiredResult = HomogenizeEol(DesiredResult).TrimEnd()
+            Using vbTestBase As New VisualBasicFormattingTestBase()
+                vbTestBase.AssertFormatSpanAsync(actualResult, DesiredResult)
+                Dim errorMessage As String = FindFirstDifferenceLine(DesiredResult, actualResult)
+                If errorMessage <> "Files identical" Then
+                    Assert.AreEqual(DesiredResult, actualResult, errorMessage)
+                End If
+            End Using
             csharpWorkspace.Dispose()
             vbWorkspace.Dispose()
         End Sub
-
-        Private Shared Function FindFirstDifferenceColumn(DesiredLine As String, ActualLine As String) As (ColumnIndex As Integer, Character As String)
-            Dim minLength As Integer = Math.Min(DesiredLine.Length, ActualLine.Length) - 1
-            For index As Integer = 0 To minLength
-                If Not DesiredLine.Chars(index).Equals(ActualLine.Chars(index)) Then
-                    Return (index + 1, $"Expected Character ""{DesiredLine.Substring(index, 1)}"", Actual Character ""{ActualLine.Substring(index, 1)}""")
-                End If
-            Next
-#Disable Warning CC0013 ' Use Ternary operator.
-            If DesiredLine.Length > ActualLine.Length Then
-#Enable Warning CC0013 ' Use Ternary operator.
-                Return (minLength + 1, $"Expected Character ""{DesiredLine.Substring(minLength + 1, 1)}"", Actual Character Nothing")
-            Else
-                Return (minLength + 1, $"Expected Character Nothing, Actual Character ""{ActualLine.Substring(minLength + 1, 1)}""")
-            End If
-        End Function
-
-        Private Shared Function FindFirstDifferenceLine(DesiredText As String, ActualText As String) As String
-            Dim Desiredlines() As String = DesiredText.SplitLines()
-            Dim ActuaLines() As String = ActualText.SplitLines()
-            For index As Integer = 0 To Math.Min(Desiredlines.GetUpperBound(0), ActuaLines.GetUpperBound(0))
-                Dim DesiredLine As String = Desiredlines(index)
-                Dim ActualLine As String = ActuaLines(index)
-                If Not DesiredLine.Equals(ActualLine, StringComparison.CurrentCulture) Then
-                    Dim p As (ColumnIndex As Integer, Character As String) = FindFirstDifferenceColumn(DesiredLine, ActualLine)
-                    Return $"{vbCrLf}Expected Line_{index + 1} {DesiredLine}{vbCrLf}Actual Line___{index + 1} {ActualLine}{vbCrLf}Column {p.ColumnIndex} {p.Character}"
-                End If
-            Next
-            Return "Files identical"
-        End Function
-
-        Protected Shared Function WorkspaceFormat(workspace As Workspace, root As SyntaxNode, spans As IEnumerable(Of TextSpan), OptionSet As OptionSet, SourceText As SourceText) As String
-            Contracts.Contract.Requires(SourceText IsNot Nothing)
-            Dim result As IList(Of TextChange) = Formatter.GetFormattedTextChanges(root, spans, workspace, OptionSet)
-            Return SourceText.WithChanges(result).ToString()
-        End Function
 
     End Class
 

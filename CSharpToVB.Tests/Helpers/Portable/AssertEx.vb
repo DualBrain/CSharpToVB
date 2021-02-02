@@ -1,6 +1,7 @@
 ﻿' Licensed to the .NET Foundation under one or more agreements.
 ' The .NET Foundation licenses this file to you under the MIT license.
 ' See the LICENSE file in the project root for more information.
+
 Imports System.Text
 
 Imports DiffPlex
@@ -37,11 +38,11 @@ Namespace Roslyn.Test.Utilities
             For Each line As DiffPiece In diff.Lines
                 Select Case line.Type
                     Case ChangeType.Inserted
-                        messageBuilder.Append("+")
+                        messageBuilder.Append("+"c)
                     Case ChangeType.Deleted
-                        messageBuilder.Append("-")
+                        messageBuilder.Append("-"c)
                     Case Else
-                        messageBuilder.Append(" ")
+                        messageBuilder.Append(" "c)
                 End Select
 
                 messageBuilder.AppendLine(line.Text)

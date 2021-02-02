@@ -9,6 +9,7 @@ root = true
 [*]
 indent_style = space
 indent_size = 4
+file_header_template = Licensed to the .NET Foundation under one or more agreements.\nThe .NET Foundation licenses this file to you under the MIT license.\nSee the LICENSE file in the project root for more information.
 
 [*.json]
 indent_size = 2
@@ -19,12 +20,23 @@ charset = utf-8-bom
 insert_final_newline = true
 trim_trailing_whitespace = true
 
-file_header_template= Licensed to the .NET Foundation under one or more agreements.\nThe .NET Foundation licenses this file to you under the MIT license.\nSee the LICENSE file in the project root for more information.
+dotnet_separate_import_directive_groups = false
+dotnet_style_parentheses_in_arithmetic_binary_operators = always_for_clarity:suggestion
+dotnet_style_parentheses_in_other_binary_operators = always_for_clarity:suggestion
+dotnet_style_parentheses_in_other_operators = never_if_unnecessary:suggestion
+dotnet_style_parentheses_in_relational_binary_operators = always_for_clarity:suggestion
+dotnet_style_prefer_auto_properties = true:silent
+dotnet_style_prefer_conditional_expression_over_assignment = true
+dotnet_style_prefer_conditional_expression_over_return = true
+dotnet_style_prefer_inferred_anonymous_type_member_names = true:suggestion
+dotnet_style_prefer_inferred_tuple_names = true:suggestion
+dotnet_style_prefer_is_null_check_over_reference_equality_method = true:silent
+dotnet_style_readonly_field = true:suggestion
+dotnet_style_require_accessibility_modifiers = for_non_interface_members:silent
 
 # avoid this. unless absolutely necessary
 dotnet_style_qualification_for_field = false:suggestion
 dotnet_style_qualification_for_property = false:suggestion
-dotnet_style_qualification_for_method = false:suggestion
 dotnet_style_qualification_for_event = false:suggestion
 # use language keywords instead of BCL types
 dotnet_style_predefined_type_for_locals_parameters_members = true:suggestion
@@ -74,6 +86,14 @@ dotnet_style_null_propagation = true:suggestion
 
 # C# files
 [*.cs]
+dotnet_style_qualification_for_method = false:suggestion
+csharp_indent_case_contents_when_block = true
+csharp_preferred_modifier_order = public,private,protected,internal,static,extern,new,virtual,abstract,sealed,override,readonly,unsafe,volatile,async:suggestion
+csharp_prefer_braces = true:silent
+csharp_prefer_simple_default_expression = true:suggestion
+csharp_style_deconstructed_variable_declaration = true:suggestion
+csharp_style_pattern_local_over_anonymous_function = true:suggestion
+csharp_using_directive_placement = outside_namespace:silent
 
 # New line preferences
 csharp_new_line_before_open_brace = all
@@ -95,7 +115,6 @@ csharp_indent_labels = one_less_than_current
 csharp_style_var_for_built_in_types = false:none
 csharp_style_var_when_type_is_apparent = false:none
 csharp_style_var_elsewhere = false:suggestion
-
 
 # Code style defaults
 csharp_preserve_single_line_blocks = true
@@ -146,6 +165,31 @@ csharp_space_between_square_brackets = false
 [*.vb]
 # Modifier preferences
 visual_basic_preferred_modifier_order = Partial,Default,Private,Protected,Public,Friend,NotOverridable,Overridable,MustOverride,Overloads,Overrides,MustInherit,NotInheritable,Static,Shared,Shadows,ReadOnly,WriteOnly,Dim,Const,WithEvents,Widening,Narrowing,Custom,Async:suggestion
+dotnet_style_qualification_for_method = true:warning
+dotnet_style_qualification_for_property = true:warning
+
+# locals should be camelCase
+dotnet_naming_symbols.locals.applicable_kinds = local
+dotnet_naming_style.camel_case_style.capitalization = camel_case
+dotnet_naming_rule.locals_must_have_camel_case.symbols = locals
+dotnet_naming_rule.locals_must_have_camel_case.severity = warning
+dotnet_naming_rule.locals_must_have_camel_case.style = camel_case_style
+
+# See https://docs.microsoft.com/en-us/visualstudio/ide/editorconfig-naming-conventions?view=vs-2019
+# Also see https://github.com/canton7/RestEase/blob/f7efb7684b96ce9da4f55d52f7abfa94eb7c0340/src/.editorconfig#L215
+
+# Symbols: async and method
+#dotnet_naming_symbols.async_methods.applicable_kinds = method
+#dotnet_naming_symbols.async_methods.required_modifiers = async
+
+# Style: must be Pascal case and end in Async
+#dotnet_naming_style.async_suffix.required_suffix = Async
+#dotnet_naming_style.async_suffix.capitalization = pascal_case
+
+# Rule: async methods must be pascal case and end with "Async"
+#dotnet_naming_rule.async_methods_must_have_async_suffix.symbols = async_methods
+#dotnet_naming_rule.async_methods_must_have_async_suffix.style = async_suffix
+#dotnet_naming_rule.async_methods_must_have_async_suffix.severity = warning
 
 # CA1031: Do not catch general exception types
 dotnet_diagnostic.CA1031.severity = silent
@@ -153,16 +197,14 @@ dotnet_diagnostic.CA1031.severity = silent
 # CA1303: Do not pass literals as localized parameters
 dotnet_diagnostic.CA1303.severity = silent
 
+# CA1308: Do not pass literals as localized parameters
+dotnet_diagnostic.CA1308.severity = suggestion
+
+# CA1826: Do not use Enumerable methods on indexable collections. Instead use the collection directly
+dotnet_diagnostic.CA1826.severity = silent
+
 # Xml project files
-[*.{csproj,vcxproj,vcxproj.filters,proj,nativeproj,locproj}]
-indent_size = 2
-
-# Xml build files
-[*.builds]
-indent_size = 2
-
-# Xml files
-[*.{xml,stylecop,ruleset}]
+[*.{csproj,vcxproj,vcxproj.filters,proj,nativeproj,locproj,vbproj}]
 indent_size = 2
 
 # Xml config files
@@ -174,10 +216,6 @@ indent_size = 2
 indent_size = 2
 charset = utf-8-bom
 insert_final_newline = true
-
-# Shell scripts
-[*.sh]
-end_of_line = lf
 
 [*.{cmd,bat}]
 end_of_line = crlf
